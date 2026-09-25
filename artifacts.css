@@ -1,0 +1,316 @@
+/* POI artifacts: four restrained, code-native objects that share the
+   scenery's ink/paper language. Motion is attached only while its matching
+   character idle is active. */
+
+.set--poi-artifact {
+  z-index: 2;
+  stroke-width: 1.8;
+  will-change: transform;
+}
+
+.artifact-paper,
+.artifact-ticket,
+.artifact-wipe {
+  fill: var(--paper);
+  stroke: var(--ink);
+}
+
+.artifact-machine {
+  fill: #ddd5c7;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.artifact-screen {
+  fill: #263c32;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.artifact-dark {
+  fill: #4d4944;
+  stroke: var(--ink);
+}
+
+.artifact-detail,
+.artifact-machine-line,
+.artifact-stand,
+.artifact-chain {
+  fill: none;
+  stroke: var(--muted-ink);
+  stroke-width: 1.4;
+}
+
+.artifact-stand {
+  stroke: var(--ink);
+  stroke-width: 2.3;
+}
+
+.artifact-pencil {
+  fill: none;
+  stroke: #bd7c32;
+  stroke-width: 3;
+}
+
+.artifact-dial,
+.artifact-watch,
+.artifact-wheel,
+.artifact-joint {
+  fill: #efe8da;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+}
+
+.artifact-dial--route {
+  fill: #d4ad69;
+}
+
+.artifact-needle,
+.artifact-signal,
+.artifact-route-line,
+.artifact-crank {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.artifact-leaf {
+  fill: #c58b38;
+  stroke: var(--ink);
+  stroke-width: 1.3;
+}
+
+.artifact-gear {
+  fill: #69aaa4;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.artifact-gear--small {
+  fill: #ae9b78;
+}
+
+.artifact-hole {
+  fill: #ddd5c7;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.artifact-gear-line,
+.artifact-key-lines {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.artifact-lamp,
+.artifact-amber-dot {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.artifact-glow {
+  fill: var(--amber);
+  stroke: none;
+  opacity: 0.16;
+}
+
+.artifact-red {
+  fill: #c95d45;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.artifact-spark {
+  fill: none;
+  stroke: #e59b35;
+  stroke-width: 2;
+  opacity: 0;
+}
+
+.artifact-ticket {
+  stroke-dasharray: 2 2;
+}
+
+.artifact-trace {
+  fill: none;
+  stroke: #75cf85;
+  stroke-width: 1.8;
+  stroke-dasharray: 70 26;
+}
+
+.artifact-cable {
+  fill: none;
+  stroke: #4f8e78;
+  stroke-width: 3;
+}
+
+.artifact-plug {
+  fill: #4f8e78;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+}
+
+.artifact-led {
+  stroke: none;
+  opacity: 0.45;
+}
+
+.artifact-led--green { fill: #72ca82; }
+.artifact-led--amber { fill: #e0a341; }
+.artifact-led--red { fill: #cb624c; }
+
+.set--poi-artifact [data-artifact-part] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* About: paper, pencil, compass, leaf, and the whole journal. */
+.set--artifact-about[data-motion="page"] [data-artifact-part="page"] {
+  animation: artifact-page-turn 1.15s ease-in-out 2;
+  transform-origin: 0% 50%;
+}
+
+.set--artifact-about[data-motion="write"] [data-artifact-part="pencil"] {
+  animation: artifact-pencil-write 0.34s ease-in-out 7 alternate;
+}
+
+.set--artifact-about[data-motion="compass"] [data-artifact-part="needle"] {
+  animation: artifact-needle-hunt 1.3s cubic-bezier(.4, 0, .2, 1) 2;
+  transform-origin: 84px -166px;
+}
+
+.set--artifact-about[data-motion="leaf"] [data-artifact-part="leaf"] {
+  animation: artifact-leaf-lift 2.2s ease-in-out;
+}
+
+.set--artifact-about[data-motion="close"] [data-artifact-part="journal"] {
+  animation: artifact-journal-breathe 2.35s ease-in-out;
+  transform-origin: 50% 100%;
+}
+
+/* Projects: every motion makes a different part of the model answer. */
+.set--artifact-projects[data-motion="measure"] [data-artifact-part="measure"] {
+  animation: artifact-measure 1.1s ease-in-out 2;
+}
+
+.set--artifact-projects[data-motion="tighten"] [data-artifact-part="gear-small"] {
+  animation: artifact-gear-tighten 0.55s ease-in-out 4;
+}
+
+.set--artifact-projects[data-motion="crank"] [data-artifact-part="crank"] {
+  animation: artifact-spin 0.8s linear 4;
+}
+.set--artifact-projects[data-motion="crank"] [data-artifact-part="gear-large"] {
+  animation: artifact-spin 1.15s linear 3;
+}
+.set--artifact-projects[data-motion="crank"] [data-artifact-part="gear-small"] {
+  animation: artifact-spin-reverse 0.72s linear 5;
+}
+
+.set--artifact-projects[data-motion="spark"] [data-artifact-part="sparks"] .artifact-spark {
+  animation: artifact-sparks 0.34s steps(2, end) 6;
+}
+
+.set--artifact-projects[data-motion="admire"] [data-artifact-part="lamp"] {
+  animation: artifact-lamp-proud 0.8s ease-in-out 3;
+}
+.set--artifact-projects[data-motion="admire"] [data-artifact-part="arm"] {
+  animation: artifact-arm-wave 1.05s ease-in-out 2;
+  transform-origin: 0% 100%;
+}
+
+/* Experience: mechanical railway gestures. */
+.set--artifact-experience[data-motion="route"] [data-artifact-part="route-needle"] {
+  animation: artifact-route-scan 1.4s ease-in-out 2;
+  transform-origin: 0% 100%;
+}
+
+.set--artifact-experience[data-motion="slats"] .artifact-slat {
+  animation: artifact-slat-flip 0.42s ease-in-out 4;
+}
+.set--artifact-experience[data-motion="slats"] .artifact-slat:nth-child(2) { animation-delay: 70ms; }
+.set--artifact-experience[data-motion="slats"] .artifact-slat:nth-child(3) { animation-delay: 140ms; }
+.set--artifact-experience[data-motion="slats"] .artifact-slat:nth-child(4) { animation-delay: 210ms; }
+.set--artifact-experience[data-motion="slats"] .artifact-slat:nth-child(5) { animation-delay: 280ms; }
+
+.set--artifact-experience[data-motion="stamp"] [data-artifact-part="stamp"] {
+  animation: artifact-stamp 1.05s cubic-bezier(.4, 0, .2, 1) 2;
+}
+.set--artifact-experience[data-motion="stamp"] [data-artifact-part="ticket"] {
+  animation: artifact-ticket-feed 2.2s ease-in-out;
+}
+
+.set--artifact-experience[data-motion="signal"] [data-artifact-part="signal"] {
+  animation: artifact-signal-pull 1.8s ease-in-out;
+  transform-origin: 0% 100%;
+}
+
+.set--artifact-experience[data-motion="watch"] [data-artifact-part="watch"] {
+  animation: artifact-watch-check 0.85s ease-in-out 3;
+}
+
+/* Skills: the small analyzer stays subordinate to the big CRT. */
+.set--artifact-skills[data-motion="tune"] [data-artifact-part="dial"] {
+  animation: artifact-dial-tune 1.1s ease-in-out 2;
+}
+
+.set--artifact-skills[data-motion="diagnose"] [data-artifact-part="keys"] {
+  animation: artifact-key-tap 0.24s ease-in-out 9 alternate;
+}
+
+.set--artifact-skills[data-motion="reseat"] [data-artifact-part="cable"] {
+  animation: artifact-cable-reseat 2.25s ease-in-out;
+  transform-origin: 100% 10%;
+}
+
+.set--artifact-skills[data-motion="trace"] [data-artifact-part="trace"] {
+  animation: artifact-trace-run 0.82s linear 4;
+}
+
+.set--artifact-skills[data-motion="wipe"] [data-artifact-part="wipe"] {
+  animation: artifact-screen-wipe 0.72s ease-in-out 3 alternate;
+}
+.set--artifact-skills[data-motion] [data-artifact-part="lights"] .artifact-led {
+  animation: artifact-led-chase 0.75s steps(1, end) infinite;
+}
+.set--artifact-skills[data-motion] [data-artifact-part="lights"] .artifact-led:nth-child(2) { animation-delay: -0.25s; }
+.set--artifact-skills[data-motion] [data-artifact-part="lights"] .artifact-led:nth-child(3) { animation-delay: -0.5s; }
+
+@keyframes artifact-page-turn {
+  0%, 100% { transform: perspective(70px) rotateY(0deg); }
+  45% { transform: perspective(70px) rotateY(-72deg) translateX(-2px); }
+  60% { transform: perspective(70px) rotateY(-18deg); }
+}
+@keyframes artifact-pencil-write { to { transform: translate(7px, 1px) rotate(2deg); } }
+@keyframes artifact-needle-hunt { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(70deg); } 62% { transform: rotate(-38deg); } }
+@keyframes artifact-leaf-lift { 0%, 100% { transform: none; } 35% { transform: translate(10px, -25px) rotate(40deg); } 65% { transform: translate(18px, -11px) rotate(105deg); } }
+@keyframes artifact-journal-breathe { 0%, 100% { transform: scaleY(1); } 34%, 56% { transform: scaleY(.16) skewX(-5deg); } }
+@keyframes artifact-measure { 0%, 100% { transform: none; } 50% { transform: translateX(24px) rotate(7deg); } }
+@keyframes artifact-gear-tighten { 0%, 100% { transform: rotate(0); } 55% { transform: rotate(28deg) scale(1.05); } }
+@keyframes artifact-spin { to { transform: rotate(360deg); } }
+@keyframes artifact-spin-reverse { to { transform: rotate(-360deg); } }
+@keyframes artifact-sparks { 0%, 100% { opacity: 0; transform: scale(.3); } 50% { opacity: 1; transform: scale(1.2); } }
+@keyframes artifact-lamp-proud { 0%, 100% { transform: scale(1); filter: none; } 50% { transform: scale(1.08); filter: drop-shadow(0 0 5px #efad48); } }
+@keyframes artifact-arm-wave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-16deg); } }
+@keyframes artifact-route-scan { 0%, 100% { transform: rotate(-65deg); } 50% { transform: rotate(92deg); } }
+@keyframes artifact-slat-flip { 0%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.08); } }
+@keyframes artifact-stamp { 0%, 100% { transform: translateY(0); } 43%, 58% { transform: translateY(19px); } }
+@keyframes artifact-ticket-feed { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-13px); } }
+@keyframes artifact-signal-pull { 0%, 100% { transform: rotate(0); } 45%, 67% { transform: rotate(28deg); } }
+@keyframes artifact-watch-check { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(8deg); } }
+@keyframes artifact-dial-tune { 0%, 100% { transform: rotate(-22deg); } 48% { transform: rotate(115deg); } 72% { transform: rotate(64deg); } }
+@keyframes artifact-key-tap { to { transform: translateY(2px); } }
+@keyframes artifact-cable-reseat { 0%, 100% { transform: none; } 32% { transform: translate(7px, -8px) rotate(8deg); } 58% { transform: translate(10px, -5px) rotate(13deg); } }
+@keyframes artifact-trace-run { to { stroke-dashoffset: -96; } }
+@keyframes artifact-screen-wipe { from { transform: translate(-12px, 6px) rotate(-9deg); } to { transform: translate(16px, -8px) rotate(10deg); } }
+@keyframes artifact-led-chase { 0%, 32% { opacity: 1; filter: drop-shadow(0 0 3px currentColor); } 33%, 100% { opacity: .28; filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .set--poi-artifact [data-artifact-part],
+  .set--poi-artifact [class^="artifact-"] {
+    animation: none !important;
+  }
+}
+

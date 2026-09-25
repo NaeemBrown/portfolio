@@ -1,0 +1,13 @@
+# Local development and QA material
+backup/
+concepts/
+scratch/
+
+# Generated browser captures
+*.png
+
+# Common local files
+.DS_Store
+Thumbs.db
+*.log
+node_modules/

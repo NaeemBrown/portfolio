@@ -1,0 +1,4313 @@
+/* Stickline: the stick figure's pen, drawn as a typeface. Built by
+   fonts/build_stickline.py. Each face claims a weight range so the browser
+   never synthesises a fake bold over the monoline strokes. */
+@font-face {
+  font-family: "Stickline";
+  src: url("fonts/stickline-regular.woff") format("woff");
+  font-weight: 100 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Stickline";
+  src: url("fonts/stickline-bold.woff") format("woff");
+  font-weight: 600 900;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --background: #f0eee9;
+  --ink: #20201f;
+  --muted-ink: #6e6b65;
+  --paper: #f7f5f0;
+  --amber: #d8892f;
+  --font-display: "Stickline", "Arial Rounded MT Bold", Arial, sans-serif;
+  --nav-h: 78px;
+  --floor-level: 79%;
+
+  /* The SVG viewBox is 242 units tall, so one unit === var(--fig-h) / 242.
+     Every distance below is derived from that so the scene stays in step at
+     any size. */
+  --fig-h: clamp(150px, 24vh, 230px);
+
+  /* Ground marks sit one walking stride apart, so they pass underfoot in
+     time with his steps. The gaits themselves are driven from script.js. */
+  --stride: calc(var(--fig-h) * 0.281);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* An ink arrow stands in for the pointer on mouse/trackpad devices.
+   Over UI controls, the native cursor is always visible and responsive.
+   Over the world canvas, the arrow tracks with zero latency. */
+@media (pointer: fine) {
+  html.has-ink-cursor .scene {
+    cursor: none;
+  }
+
+  /* Native responsive pointer on all interactive controls */
+  html.has-ink-cursor button,
+  html.has-ink-cursor a,
+  html.has-ink-cursor input,
+  html.has-ink-cursor select,
+  html.has-ink-cursor textarea,
+  html.has-ink-cursor [role="button"],
+  html.has-ink-cursor [role="tab"],
+  html.has-ink-cursor .navbar,
+  html.has-ink-cursor .navbar *,
+  html.has-ink-cursor .about-paper,
+  html.has-ink-cursor .about-paper *,
+  html.has-ink-cursor .sprint-hint,
+  html.has-ink-cursor .sprint-hint * {
+    cursor: pointer !important;
+  }
+
+  /* The Projects and Experience sheets are read, not clicked, save for their
+     buttons, which keep the pointer above. */
+  html.has-ink-cursor .projects-sheet,
+  html.has-ink-cursor .line-sheet {
+    cursor: default;
+  }
+
+  /* Hide the arrow over UI actions so it never obscures clickable targets */
+  html.has-ink-cursor .ink-cursor.is-over-action {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* Every part of it turns about the arrow's tip, (5, 4) in its viewBox. */
+.ink-cursor {
+  position: fixed;
+  z-index: 2147483647;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 36px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+  will-change: transform;
+}
+
+.ink-cursor.is-visible {
+  opacity: 1;
+}
+
+.ink-cursor svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(2px 2.5px 0 rgba(32, 32, 31, 0.14));
+}
+
+.ink-cursor__swing,
+.ink-cursor__arrow,
+.ink-cursor__ring,
+.ink-cursor__ring circle,
+.ink-cursor__burst {
+  transform-box: view-box;
+  transform-origin: 5px 4px;
+}
+
+.ink-cursor__arrow {
+  transition: transform 110ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.ink-cursor__shape {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 2.1;
+  stroke-linejoin: round;
+  transition: fill 140ms ease, stroke 140ms ease;
+}
+
+/* A faint stroke down its face, which turns to paper when it inks in. */
+.ink-cursor__shine {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.18;
+  transition: stroke 140ms ease, opacity 140ms ease;
+}
+
+/* Over him: it inks in, edged in paper so it stands off his own ink, and
+   an amber ring turns round its tip. */
+.ink-cursor__ring {
+  opacity: 0;
+  transform: scale(0.3);
+  transition: opacity 140ms ease, transform 240ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.ink-cursor__ring circle {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 1.8;
+  stroke-dasharray: 3.4 3.1;
+  stroke-linecap: round;
+}
+
+.ink-cursor.is-on-figure .ink-cursor__ring {
+  opacity: 1;
+  transform: none;
+}
+
+.ink-cursor.is-on-figure .ink-cursor__ring circle {
+  animation: cursor-ring 4s linear infinite;
+}
+
+.ink-cursor.is-on-figure .ink-cursor__shape {
+  fill: var(--ink);
+  stroke: var(--paper);
+}
+
+.ink-cursor.is-on-figure .ink-cursor__shine {
+  stroke: var(--paper);
+  opacity: 0.5;
+}
+
+/* A jab as it pokes him, a squash when pressed, and a burst of ink on
+   impact. */
+.ink-cursor.is-poking .ink-cursor__arrow {
+  transform: translate(-2px, -2px) scale(0.94);
+}
+
+.ink-cursor.is-pressing .ink-cursor__arrow {
+  transform: scale(0.84);
+}
+
+.ink-cursor__burst {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.ink-cursor.is-swatted .ink-cursor__burst {
+  animation: cursor-burst 300ms ease-out both;
+}
+
+.ink-cursor.is-swatted .ink-cursor__arrow {
+  animation: cursor-recoil 280ms ease-out;
+}
+
+@keyframes cursor-ring {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cursor-recoil {
+  0% { transform: scale(0.9) rotate(-14deg); }
+  40% { transform: scale(1.08) rotate(9deg); }
+  100% { transform: none; }
+}
+
+@keyframes cursor-burst {
+  0% { opacity: 0; transform: scale(0.5); }
+  28% { opacity: 0.85; }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+@media (pointer: coarse) {
+  .ink-cursor {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-cursor,
+  .ink-cursor__arrow,
+  .ink-cursor__ring,
+  .ink-cursor__ring circle,
+  .ink-cursor__burst {
+    transition: none;
+    animation: none !important;
+  }
+}
+
+button {
+  font: inherit;
+}
+
+.scene {
+  /* First-paint position only; script.js drives the camera from there. */
+  --camera-x: calc(50vw - 400px);
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100svh;
+  min-height: 420px;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse 62% 92% at 50% -4%,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.6) 28%,
+      rgba(255, 255, 255, 0.12) 61%,
+      transparent 79%
+    ),
+    radial-gradient(
+      ellipse 120% 100% at 50% 48%,
+      transparent 48%,
+      rgba(67, 67, 65, 0.08) 100%
+    ),
+    var(--background);
+}
+
+.spotlight {
+  position: absolute;
+  z-index: -1;
+  top: -16%;
+  left: 50%;
+  width: min(78vw, 1020px);
+  height: 102%;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at 50% 22%,
+    rgba(255, 255, 255, 0.38),
+    transparent 68%
+  );
+  filter: blur(20px);
+}
+
+/* ---------------------------------------------------------------- navbar */
+
+/* No bar: the destinations float over the scene, the sound button off to
+   the right. Only what is in it takes the pointer, so the space between is
+   still the scene's. */
+.navbar {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: var(--nav-h);
+  padding: 0 clamp(18px, 3vw, 40px);
+  pointer-events: none;
+}
+
+.navbar > * {
+  pointer-events: auto;
+}
+
+.poi-nav {
+  grid-column: 2;
+}
+
+.navbar__actions {
+  grid-column: 3;
+}
+
+/* Destinations sit in equal columns, so the route line below them can put
+   a stop under each one and the runner can travel between them. */
+.poi-nav {
+  --count: 4;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  justify-self: center;
+  padding-bottom: 14px;
+}
+
+.poi-nav::before {
+  position: absolute;
+  right: calc(50% / var(--count));
+  bottom: 6px;
+  left: calc(50% / var(--count));
+  height: 1px;
+  background: rgba(32, 32, 31, 0.22);
+  content: "";
+}
+
+.poi-nav button {
+  position: relative;
+  padding: 12px 16px 6px;
+  border: 0;
+  color: var(--muted-ink);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+
+.poi-nav button::after {
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: var(--paper);
+  content: "";
+}
+
+.poi-nav button:hover,
+.poi-nav button:focus-visible,
+.poi-nav button[aria-current="location"] {
+  color: var(--ink);
+}
+
+.poi-nav button[aria-current="location"]::after {
+  background: currentColor;
+}
+
+.poi-nav button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* Where he is right now, placed along the route by script.js. */
+.poi-nav__runner {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 999px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+}
+
+.sound-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1.5px solid rgba(32, 32, 31, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sound-toggle:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(32, 32, 31, 0.45);
+  transform: translateY(-1px);
+}
+
+.sound-toggle.is-active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.sound-toggle.is-active svg {
+  stroke: #fff;
+}
+
+/* The sound button and the controls wait, unseen but laid out so script.js
+   can aim at them, until he sends them to their places in the opening. They
+   land with a squash. */
+.sound-toggle.is-waiting,
+.sprint-hint.is-waiting {
+  visibility: hidden;
+}
+
+.sound-toggle.is-landing,
+.sprint-hint.is-landing {
+  transform-origin: 50% 100%;
+  animation: tool-land 460ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes tool-land {
+  0% { transform: scale(1.14, 0.8); }
+  45% { transform: scale(0.95, 1.06); }
+  100% { transform: none; }
+}
+
+/* The sound button lands with a ring going out from it. */
+.sound-toggle.is-landing::after {
+  position: absolute;
+  inset: -1.5px;
+  border: 2px solid var(--ink);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  animation: tool-ring 440ms ease-out forwards;
+}
+
+@keyframes tool-ring {
+  from { opacity: 0.5; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.3, 1.8); }
+}
+
+/* A soft shadow on the floor where the controls are about to land. */
+.tool-shadow {
+  position: fixed;
+  z-index: 89;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(32, 32, 31, 0.24), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The copies of them he sends there, flown by script.js from the page's top
+   left corner. */
+.sound-toggle.intro-flyer,
+.sprint-hint.intro-flyer {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  left: 0;
+  margin: 0;
+  opacity: 1;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  transition: none;
+  will-change: transform;
+}
+
+/* The controls while he has them: solid, and outlined in his ink, which
+   script.js keeps as wide on screen as his line however small they are. */
+.sprint-hint.intro-capsule {
+  border-style: solid;
+  border-color: rgba(32, 32, 31, 0.8);
+  background: #fbf9f4;
+}
+
+/* The faint copies that trail them through the air. */
+.intro-flyer.intro-flyer--ghost {
+  z-index: 39;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.map-button {
+  padding: 9px 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 180ms ease, background-color 180ms ease;
+}
+
+.map-button::after {
+  margin-left: 8px;
+  content: "\2192" / "";
+}
+
+.map-button[hidden] {
+  display: none;
+}
+
+.map-button:hover,
+.map-button:focus-visible {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.map-button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The camera holds on the figure, so the world is what travels. */
+.world {
+  position: absolute;
+  z-index: 1;
+  top: var(--floor-level);
+  left: 0;
+  width: 10400px;
+  height: 96px;
+  transform: translate3d(var(--camera-x), 0, 0);
+  will-change: transform;
+}
+
+/* One mark per stride with a longer one every fourth. It lives inside the
+   world, so the camera moves it exactly as far as he travels. */
+.ground {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  width: 100%;
+  height: clamp(24px, 4vh, 48px);
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--ink) 0 2px,
+      transparent 2px calc(var(--stride) * 4)
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--ink) 0 2px,
+      transparent 2px var(--stride)
+    );
+  background-repeat: repeat-x;
+  background-size:
+    auto 100%,
+    auto 45%;
+  opacity: var(--project-ground-opacity, 0.22);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+
+.floor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--ink);
+  opacity: var(--project-world-opacity, 1);
+}
+
+/* ---------------------------------------------------------------- campfire */
+
+/* The camp sits at the About stop (--camp-x, set by script.js): a log seat
+   where he stands, and the fire FIRE_GAP body heights to its right. Both
+   scale with the figure so he always fits the seat. */
+.world {
+  --camp-x: 4900px;
+}
+
+.camp-seat {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  left: calc(var(--camp-x) - var(--fig-h) * 0.165);
+  width: calc(var(--fig-h) * 0.42);
+  height: calc(var(--fig-h) * 0.19);
+  overflow: visible;
+  transform: translate(-50%, -100%);
+  opacity: var(--project-world-opacity, 1);
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.camp-seat__log,
+.camp-seat__end {
+  stroke-width: 2.6;
+}
+
+.camp-seat__ring,
+.camp-seat__bark {
+  fill: none;
+  stroke: rgba(32, 32, 31, 0.5);
+  stroke-width: 1.6;
+}
+
+.campfire {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  left: calc(var(--camp-x) + var(--fig-h) * 0.72);
+  width: calc(var(--fig-h) * 0.62);
+  aspect-ratio: 120 / 130;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  opacity: var(--project-world-opacity, 1);
+}
+
+/* Warm light thrown on everything nearby, him included. */
+.campfire__light {
+  position: absolute;
+  bottom: -40%;
+  left: 50%;
+  width: 520%;
+  height: 330%;
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 62%,
+    rgba(245, 158, 72, 0.2),
+    rgba(245, 158, 72, 0.07) 42%,
+    transparent 70%
+  );
+  transform: translateX(-50%);
+  animation: fire-light 2.6s ease-in-out infinite alternate;
+}
+
+.campfire__glow {
+  position: absolute;
+  bottom: -2%;
+  left: 50%;
+  width: 115%;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(250, 180, 80, 0.55), rgba(232, 110, 40, 0.18) 60%, transparent);
+  filter: blur(6px);
+  transform: translateX(-50%);
+  animation: fire-glow 1.3s ease-in-out infinite alternate;
+}
+
+.campfire svg {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.campfire__logs {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 6;
+}
+
+.campfire__logs--back {
+  stroke: #3a332c;
+  stroke-width: 5;
+}
+
+.campfire__log-ends circle,
+.campfire__stones {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 2.2;
+}
+
+/* Each tongue flickers on its own clock, pinned at its base. */
+.flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.flame--outer,
+.flame--lick-left,
+.flame--lick-right {
+  fill: url(#flame-outer);
+  stroke: rgba(176, 66, 26, 0.55);
+  stroke-width: 1.4;
+}
+
+.flame--mid {
+  fill: url(#flame-mid);
+}
+
+.flame--core {
+  fill: url(#flame-core);
+}
+
+.flame--outer {
+  animation: flame-tall 1.25s ease-in-out infinite alternate;
+}
+
+.flame--mid {
+  animation: flame-tall 0.86s ease-in-out -0.4s infinite alternate-reverse;
+}
+
+.flame--core {
+  animation: flame-core 0.55s ease-in-out infinite alternate;
+}
+
+.flame--lick-left {
+  animation: flame-lick 1.05s ease-in-out -0.3s infinite alternate;
+}
+
+.flame--lick-right {
+  animation: flame-lick 0.92s ease-in-out -0.7s infinite alternate-reverse;
+}
+
+.campfire__flames {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: flame-sway 2.4s ease-in-out infinite alternate;
+}
+
+.campfire__ember {
+  position: absolute;
+  z-index: 2;
+  bottom: 22%;
+  left: calc(50% + var(--x));
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #f7a23b;
+  box-shadow: 0 0 5px 1px rgba(247, 162, 59, 0.75);
+  opacity: 0;
+  animation: ember-rise var(--d) linear var(--delay) infinite;
+}
+
+.campfire__smoke {
+  position: absolute;
+  bottom: 70%;
+  left: 50%;
+  width: 14%;
+  aspect-ratio: 1;
+  margin-left: -7%;
+  border-radius: 50%;
+  background: rgba(90, 84, 76, 0.07);
+  filter: blur(5px);
+  opacity: 0;
+  animation: smoke-rise 5.4s ease-out var(--delay) infinite;
+}
+
+/* The Projects workbench and, while the camera moves, the figure too, drawn
+   in scene pixels by script.js. Stroke widths are set there as well, so the
+   lines can thicken as the camera closes in. */
+.bench-cam {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.bench-cam__shadow {
+  fill: var(--ink);
+  stroke: none;
+}
+
+/* Bench parts are filled, so nearer ones hide what is behind them. --zoom
+   thickens the lines as the camera closes in. */
+.bench-cam__body {
+  fill: var(--paper);
+  stroke-width: calc(2px * var(--zoom, 1));
+}
+
+.bench-cam__body--paper {
+  fill: #fcfbf8;
+  stroke-width: calc(1.2px * var(--zoom, 1));
+}
+
+.bench-cam__body--leaf {
+  fill: #eef0e6;
+  stroke-width: calc(1.3px * var(--zoom, 1));
+}
+
+.bench-cam__body--light {
+  fill: var(--amber);
+  stroke: none;
+  opacity: 0.13;
+}
+
+.bench-cam__lines {
+  stroke: var(--muted-ink);
+  stroke-width: calc(1.2px * var(--zoom, 1));
+}
+
+.bench-cam__lines--ink {
+  stroke: var(--ink);
+  stroke-width: calc(2.2px * var(--zoom, 1));
+}
+
+.bench-cam__head {
+  fill: var(--paper);
+}
+/* What he builds on the bench for each project, part by part. */
+.bench-cam__part {
+  stroke: var(--ink);
+  stroke-width: calc(1.6px * var(--zoom, 1));
+}
+
+.bench-cam__part--ink { fill: #4a4744; }
+.bench-cam__part--teal { fill: #7fbfc9; }
+.bench-cam__part--amber { fill: #e3a05a; }
+.bench-cam__part--paper { fill: #f7f5f0; }
+.bench-cam__part--glass { fill: #bfe3f2; }
+.bench-cam__part--red { fill: #d9674b; }
+
+.bench-cam__part-lines {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: calc(1.4px * var(--zoom, 1));
+}
+
+.bench-cam__body--mat {
+  fill: #cfdfd2;
+}
+
+.bench-cam__lines--mat {
+  stroke: #9fb8a5;
+  stroke-width: calc(1px * var(--zoom, 1));
+}
+
+.bench-cam__body--bin {
+  fill: #6b645a;
+}
+
+.bench-cam__lines--tray {
+  stroke: #e9e3d8;
+  stroke-width: calc(1.4px * var(--zoom, 1));
+}
+
+.bench-cam__sparks {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: calc(2px * var(--zoom, 1));
+  stroke-linecap: round;
+}
+
+/* His far limbs start as dim as the rig's and come up to full strength as
+   the camera gets round behind him, where neither side is the far one. */
+.bench-cam .is-far {
+  opacity: calc(0.38 + 0.62 * var(--behind, 0));
+}
+
+/* Near the end of the move his legs point almost straight at the camera and
+   would only show as stubs at the bottom edge, so they fade out of shot. */
+.bench-cam__legs {
+  opacity: var(--legs, 1);
+}
+
+.bench-cam__ink-stop {
+  stop-color: var(--ink);
+}
+
+.bench-cam__hand {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.hand {
+  fill: var(--ink);
+  stroke: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.scene[data-gait="inspecting"] .hand,
+.scene[data-gait="sitting"] .hand,
+.scene[data-gait="climbing"] .hand,
+.scene[data-gait="rope-climbing"] .hand,
+.scene[data-gait="pumping"] .hand,
+.scene[data-gait="coding"] .hand {
+  opacity: 1;
+}
+
+/* -------------------------------------------------- campfire emotes & props */
+
+.campfire,
+.camp-seat {
+  cursor: pointer;
+}
+
+.scene[data-gait="sitting"] .figure {
+  cursor: pointer;
+}
+
+.prop-stick,
+.prop-smore,
+.prop-cracker-far,
+.prop-breath,
+.prop-stick__mallow-toasted,
+.prop-smore__bite,
+.prop-smore__bite-stretch {
+  transition: opacity 180ms ease;
+}
+
+.prop-stick__wood {
+  stroke: #724c28;
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.prop-stick__mallow {
+  fill: #fffdf6;
+  stroke: #7d6b56;
+  stroke-width: 1.2;
+}
+
+.prop-stick__mallow-toasted {
+  fill: url(#mallow-toasted-grad);
+  stroke: #4e2908;
+  stroke-width: 1.2;
+}
+
+.prop-smore__cracker,
+.prop-cracker-far .prop-smore__cracker {
+  fill: #dca158;
+  stroke: #784415;
+  stroke-width: 0.8;
+}
+
+.prop-smore__dot,
+.prop-cracker-far .prop-smore__dot {
+  fill: #9e5c20;
+  stroke: none;
+}
+
+.prop-smore__choc,
+.prop-cracker-far .prop-smore__choc {
+  fill: #2e1305;
+  stroke: none;
+}
+
+.prop-smore__choc-shine,
+.prop-cracker-far .prop-smore__choc-shine {
+  stroke: #4a220c;
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+
+.prop-smore__mallow {
+  fill: #fff8eb;
+  stroke: #b0651e;
+  stroke-width: 0.8;
+}
+
+.prop-smore__mallow-toast {
+  fill: none;
+  stroke: #b0651e;
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+
+.prop-smore__mallow-drip {
+  fill: #fff8eb;
+  stroke: #b0651e;
+  stroke-width: 0.5;
+}
+
+.prop-smore__bite {
+  fill: var(--paper);
+  stroke: none;
+}
+
+.prop-smore__bite-stretch {
+  fill: none;
+  stroke: #e6c898;
+  stroke-width: 0.7;
+}
+
+.prop-breath__puff {
+  stroke: rgba(220, 210, 195, 0.7);
+  stroke-width: 1.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* Running in-stride flares: hydration & sweat wipe */
+#hand-water-bottle {
+  transform-box: view-box;
+  transform-origin: 70px 142px;
+}
+#hand-water-bottle rect {
+  stroke: #0284c7;
+  stroke-width: 1.4;
+}
+#hand-water-bottle line {
+  stroke: #0284c7;
+  stroke-width: 1;
+}
+#bottle-liquid {
+  stroke: none;
+}
+#forehead-sweat-group circle,
+#sweat-flick-spray circle {
+  stroke-width: 0.5;
+}
+#sweat-trickle-drip path {
+  stroke-width: 0.7;
+}
+#sweat-wipe-sheen {
+  stroke-width: 2.5;
+  fill: none;
+}
+
+.world-smore {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  left: 0;
+  width: 22px;
+  height: 14px;
+  pointer-events: none;
+  opacity: var(--project-world-opacity, 1);
+  transform: translate(-50%, -100%);
+  will-change: transform, left;
+}
+
+@keyframes flame-tall {
+  0% { transform: scale(1, 0.93) skewX(-3deg); }
+  50% { transform: scale(0.96, 1.04) skewX(1deg); }
+  100% { transform: scale(1.03, 1.08) skewX(3deg); }
+}
+
+@keyframes flame-core {
+  from { transform: scale(0.94, 0.9); }
+  to { transform: scale(1.05, 1.12); }
+}
+
+@keyframes flame-lick {
+  0% { transform: scale(0.85, 0.7) skewX(4deg); }
+  60% { transform: scale(1, 1.08) skewX(-2deg); }
+  100% { transform: scale(0.95, 0.9) skewX(-5deg); }
+}
+
+@keyframes flame-sway {
+  from { transform: skewX(-2deg); }
+  to { transform: skewX(2.5deg); }
+}
+
+@keyframes fire-glow {
+  0% { opacity: 0.75; transform: translateX(-50%) scale(0.94); }
+  40% { opacity: 1; }
+  100% { opacity: 0.85; transform: translateX(-50%) scale(1.08); }
+}
+
+@keyframes fire-light {
+  0% { opacity: 0.8; }
+  35% { opacity: 1; }
+  60% { opacity: 0.88; }
+  100% { opacity: 1; }
+}
+
+@keyframes ember-rise {
+  0% { opacity: 0; transform: translate(0, 0) scale(1); }
+  12% { opacity: 1; }
+  55% { transform: translate(var(--drift), calc(var(--fig-h) * -0.5)) scale(0.8); }
+  100% { opacity: 0; transform: translate(calc(var(--drift) * -0.5), calc(var(--fig-h) * -0.95)) scale(0.3); }
+}
+
+@keyframes smoke-rise {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(14px, calc(var(--fig-h) * -0.7)) scale(2.2); }
+}
+
+/* Experience is physical scenery in the shared world. The viewBox uses the
+   same 242-unit body scale as the figure, so the rig meets every rung and
+   platform instead of floating over an illustration. */
+/* His name as a stone statue where the site opens. script.js carves the
+   letters and sets its box, so a viewBox unit is a figure unit. The N
+   starts knocked out of shape and glitching, until he fixes it. */
+.name-statue {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  overflow: visible;
+  transform: translateY(-100%);
+  fill: none;
+  stroke: var(--ink);
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.name-statue * {
+  vector-effect: non-scaling-stroke;
+}
+
+.statue__front {
+  fill: #ebe6dc;
+  stroke-width: 2.2;
+}
+
+.statue__side {
+  fill: #c9bfae;
+  stroke-width: 1.6;
+}
+
+.statue__plinth {
+  fill: #e2dccf;
+  stroke-width: 2.2;
+}
+
+.statue__ledge {
+  fill: #efeae0;
+  stroke-width: 2;
+}
+
+.statue__chisel {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.statue__engraving {
+  fill: var(--muted-ink);
+  stroke: none;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-synthesis: none;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+
+.statue__glitch {
+  animation: statue-glitch 1.7s steps(1) infinite;
+}
+
+@keyframes statue-glitch {
+  0%, 86%, 100% { transform: none; }
+  88% { transform: translate(-6px, 0); }
+  91% { transform: translate(5px, -2px); }
+  94% { transform: translate(-2px, 2px); }
+}
+
+.statue__sparks {
+  stroke: var(--amber);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.statue__letter.is-fixed .statue__front {
+  animation: statue-glow 1.6s ease-out both;
+}
+
+.statue__letter.is-fixed .statue__sparks {
+  animation: statue-sparks 900ms ease-out both;
+}
+
+@keyframes statue-glow {
+  0% { fill: #fbe3bd; stroke: var(--amber); filter: drop-shadow(0 0 12px rgba(216, 137, 47, 0.85)); }
+  100% { fill: #ebe6dc; stroke: var(--ink); filter: none; }
+}
+
+@keyframes statue-sparks {
+  0% { opacity: 0; transform: scale(0.7); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+.statue__sparks {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* The laptop he codes on at the start: a pale aluminium body, and open, a
+   dark screen with the fix's lines on it and a soft glow. */
+.figure .laptop path,
+.figure .laptop circle {
+  stroke-width: 1.6;
+}
+
+.laptop__edge {
+  fill: #c9c2b6;
+}
+
+.laptop__deck,
+.laptop__back {
+  fill: #e4dfd6;
+}
+
+.figure .laptop .laptop__keys {
+  stroke: #8d867b;
+  stroke-width: 2.4;
+  stroke-dasharray: 1.6 1.2;
+}
+
+.figure .laptop .laptop__pad {
+  fill: #d6d0c6;
+  stroke: #8d867b;
+  stroke-width: 1;
+}
+
+.figure .laptop .laptop__light {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.figure .laptop .laptop__halo {
+  stroke: none;
+}
+
+.laptop__bezel {
+  fill: #2b3036;
+}
+
+.figure .laptop .laptop__screen {
+  fill: #17222b;
+  stroke: none;
+}
+
+.figure .laptop .laptop__code {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.laptop__code--comment { stroke: #6f8a96; }
+.laptop__code--selector { stroke: #e9eef0; }
+.laptop__code--property { stroke: #e3a05a; }
+
+/* His laptop bag: canvas, with a darker flap and a brass buckle. He carries
+   it in the opening and leaves it by his name (.start-bag). */
+.figure .bag path,
+.figure .bag rect,
+.figure .bag circle {
+  stroke-width: 1.8;
+}
+
+/* The strap is a leather band: a wide ink line with a narrower tan one on
+   top, so it reads as a strap and not as another arm. */
+.figure .bag .bag__strap,
+.start-bag .bag__strap {
+  stroke-width: 4.8;
+}
+
+.bag__strap-band {
+  stroke: #b89a72;
+}
+
+.figure .bag .bag__strap-band,
+.start-bag .bag__strap-band {
+  stroke-width: 2.8;
+}
+
+.figure .bag .bag__handle,
+.start-bag .bag__handle {
+  stroke-width: 2;
+}
+
+.bag__case {
+  fill: #e2dacb;
+}
+
+.bag__flap path {
+  fill: #d3c8b4;
+}
+
+.figure .bag .bag__buckle,
+.start-bag .bag__buckle {
+  fill: #e9b15c;
+  stroke-width: 1.2;
+}
+
+.bag__ring {
+  fill: var(--paper);
+}
+
+.figure .bag .bag__seam,
+.start-bag .bag__seam {
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2.6;
+}
+
+.start-bag {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  overflow: visible;
+  transform: translateY(-100%);
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+.start-bag * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Dropped where he stood, when the opening is cut short. */
+.start-bag.is-dropped {
+  animation: bag-drop 320ms ease-out both;
+}
+
+@keyframes bag-drop {
+  from { opacity: 0; }
+}
+
+/* The editor over his head at the start, with the fix typing out in it. */
+.intro-editor {
+  position: absolute;
+  z-index: 4;
+  bottom: calc(100% - var(--floor-level) + var(--fig-h) * 0.84);
+  left: 0;
+  width: min(290px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fbf8f1;
+  box-shadow: 5px 7px 0 rgba(32, 32, 31, 0.08);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  transform-origin: 50% 50%;
+  transition:
+    transform 420ms cubic-bezier(0.55, 0, 0.85, 0.35),
+    opacity 420ms ease-in,
+    border-color 140ms ease;
+  /* Backwards only: holding on after, it would override the transitions
+     that send it off. */
+  animation: editor-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
+}
+
+.intro-editor__bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(32, 32, 31, 0.14);
+  color: var(--muted-ink);
+  font-size: 11px;
+}
+
+.intro-editor__bar i {
+  width: 7px;
+  height: 7px;
+  border: 1.2px solid var(--muted-ink);
+  border-radius: 50%;
+}
+
+.intro-editor__bar span {
+  margin-left: 6px;
+}
+
+.intro-editor__bar b {
+  margin-left: auto;
+  color: #a8611f;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.intro-editor__code {
+  min-height: calc(6 * 1.55em);
+  margin: 0;
+  padding: 8px 12px 10px 0;
+  white-space: pre;
+}
+
+.intro-editor__number {
+  display: inline-block;
+  width: 2.4em;
+  margin-right: 0.8em;
+  color: var(--muted-ink);
+  opacity: 0.55;
+  text-align: right;
+}
+
+.intro-editor__caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: var(--ink);
+  animation: caret-blink 900ms steps(1) infinite;
+}
+
+.tk-c { color: var(--muted-ink); font-style: italic; }
+.tk-s { color: var(--ink); font-weight: 700; }
+.tk-k { color: #a8611f; }
+.tk-v { color: #2f7f8f; }
+.tk-p { color: var(--muted-ink); }
+
+.intro-editor.is-applied {
+  border-color: var(--amber);
+}
+
+.intro-editor.is-applied .intro-editor__bar b {
+  opacity: 1;
+}
+
+.intro-editor.is-sent {
+  opacity: 0;
+  transform: translate(var(--to-x), var(--to-y)) scale(0.08) rotate(-10deg);
+}
+
+@keyframes editor-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.9); }
+}
+
+/* It flinches as the sound button pops out of it. The pop stays in the list
+   so that it does not play again when the flinch is over, and the flinch
+   moves it by its own properties so as not to fight the pop or the send. */
+.intro-editor.is-kicked {
+  animation:
+    editor-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards,
+    editor-kick 320ms ease-out;
+}
+
+@keyframes editor-kick {
+  30% {
+    translate: 0 5px;
+    scale: 1.01 0.97;
+  }
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statue__glitch,
+  .statue__letter.is-fixed .statue__front,
+  .statue__letter.is-fixed .statue__sparks {
+    animation: none;
+  }
+}
+
+/* The Experience tower. script.js draws it and sets its box, so a viewBox
+   unit is a figure unit and it scales with him. */
+.experience-course-world {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  overflow: visible;
+  transform: translateY(-100%);
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+.experience-course-world * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* The faded skyline behind the course. */
+.tower__backdrop {
+  stroke: var(--muted-ink);
+  stroke-width: 1.4;
+  opacity: 0.4;
+}
+
+.tower__truss {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+  opacity: 0.45;
+}
+
+.tower__hatch {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+.tower__cable {
+  stroke-width: 1.6;
+}
+
+.tower__cable--far {
+  stroke: var(--muted-ink);
+  stroke-width: 1.3;
+  opacity: 0.5;
+}
+
+/* The buildings and their rooftop details. */
+.tower__block {
+  fill: #f4f1ea;
+  stroke-width: 2;
+}
+
+.tower__coping {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.tower__window {
+  stroke: var(--muted-ink);
+  stroke-width: 1.4;
+  opacity: 0.7;
+}
+
+.tower__vent,
+.tower__frame {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.tower__louver,
+.tower__frame-brace {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+}
+
+.tower__frame-brace {
+  stroke-width: 1.4;
+}
+
+.tower__pipe {
+  stroke-width: 2;
+}
+
+/* The water tower by the entrance. */
+.tower__stand {
+  stroke-width: 2;
+}
+
+.tower__tower-ladder {
+  stroke: var(--muted-ink);
+  stroke-width: 1.3;
+}
+
+.tower__tank,
+.tower__tank-roof {
+  fill: #f4f1ea;
+  stroke-width: 2.2;
+}
+
+.tower__tank-band {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+}
+
+.tower__mast {
+  stroke-width: 3;
+}
+
+.tower__strut {
+  stroke-width: 1.8;
+}
+
+.tower__knob {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.tower__pulley {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.tower__seam {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.tower__rail,
+.tower__pole {
+  stroke-width: 2.2;
+}
+
+.tower__ladder {
+  stroke-width: 2.6;
+}
+
+.tower__rope {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.tower__twist {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.8;
+}
+
+.tower__knot {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.tower__wall {
+  fill: #f4f1ea;
+  stroke-width: 2;
+}
+
+.tower__hold {
+  fill: var(--muted-ink);
+  stroke: none;
+}
+
+/* A sign for each level of his career. It stays up out of sight until he
+   reaches its level, then drops on its chains and swings to a stop. */
+.tower__sign {
+  opacity: 0;
+  transform: translateY(-30px) rotate(-9deg);
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  transition: opacity 300ms ease;
+}
+
+.tower__sign.is-reached {
+  opacity: 1;
+  transform: none;
+  animation: sign-drop 1100ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+@keyframes sign-drop {
+  0% { opacity: 0; transform: translateY(-30px) rotate(-9deg); }
+  30% { opacity: 1; transform: translateY(4px) rotate(7deg); }
+  55% { transform: translateY(0) rotate(-4deg); }
+  78% { transform: rotate(2deg); }
+  100% { transform: none; }
+}
+
+.tower__chain {
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2;
+}
+
+.tower__board {
+  fill: #fbf8f1;
+  stroke-width: 2;
+}
+
+.tower__board-edge {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.tower__sign text {
+  stroke: none;
+  font-synthesis: none;
+}
+
+.tower__sign-dates {
+  fill: #a8611f;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.tower__sign-title {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tower__sign-note {
+  fill: var(--muted-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+.tower__flag {
+  fill: var(--amber);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: flag-wave 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes flag-wave {
+  from { transform: skewY(-5deg) scaleX(0.92); }
+  to { transform: skewY(4deg) scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tower__flag,
+  .tower__sign.is-reached {
+    animation: none;
+  }
+}
+
+/* The Experience line, drawn into the same SVG as the tower (see the
+   experience line in script.js). Its text is filled, never stroked. */
+.experience-course-world text {
+  stroke: none;
+  font-synthesis: none;
+}
+
+/* The stations across the track, faded back like the tower's skyline. */
+.line__platform {
+  fill: #ece8df;
+  stroke: var(--muted-ink);
+  stroke-width: 1.3;
+  opacity: 0.7;
+}
+
+.line__post {
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+  opacity: 0.7;
+}
+
+.line__canopy {
+  fill: #f4f1ea;
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+}
+
+.line__nameboard {
+  fill: var(--paper);
+  stroke-width: 1.8;
+}
+
+.line__station-name {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+/* Each job's sign drops in on its chains when he pulls up under it, as the
+   tower's do. */
+.line__sign {
+  opacity: 0;
+  transform: translateY(-30px) rotate(-9deg);
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  transition: opacity 300ms ease;
+}
+
+.line__sign.is-reached {
+  opacity: 1;
+  transform: none;
+  animation: sign-drop 1100ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+.line__chain {
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2;
+}
+
+.line__board {
+  fill: #fbf8f1;
+  stroke-width: 2;
+}
+
+.line__board-edge {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.line__sign-dates {
+  fill: #a8611f;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.line__sign-title {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.line__sign-note {
+  fill: var(--muted-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+/* The departures board by the buffer stop. */
+.line__gantry {
+  stroke-width: 2.4;
+}
+
+.line__board-head {
+  fill: var(--ink);
+  stroke-width: 2;
+}
+
+.line__dep-head {
+  fill: var(--paper);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.line__dep-head--right {
+  fill: #c9c4b8;
+}
+
+.line__dep-rule {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+.line__dep-date {
+  fill: var(--muted-ink);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.line__dep-date--now {
+  fill: #a8611f;
+}
+
+.line__dep-title {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.line__dep-note {
+  fill: var(--muted-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+/* The track, laid to today and pencilled in beyond. */
+.line__sleeper {
+  fill: var(--muted-ink);
+  stroke: none;
+  opacity: 0.6;
+}
+
+.line__sleeper--sketch {
+  fill: none;
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.line__rail {
+  stroke-width: 3;
+  stroke-linecap: butt;
+}
+
+.line__rail--sketch {
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+  stroke-dasharray: 8 6;
+}
+
+.line__joint {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.line__stake {
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+}
+
+.line__flag {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.line__buffer {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.line__buffer-brace {
+  stroke-width: 2;
+}
+
+.line__buffer-lamp {
+  fill: var(--amber);
+  stroke-width: 1.6;
+}
+
+/* The years under the floor. */
+.line__axis {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+
+.line__axis--now {
+  stroke: var(--amber);
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.line__year {
+  fill: var(--muted-ink);
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.line__year--now {
+  fill: #a8611f;
+}
+
+/* The handcar. */
+.line__frame,
+.line__axlebox {
+  fill: #f4f1ea;
+  stroke-width: 2;
+}
+
+.line__frame-line {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.line__wheel {
+  fill: var(--paper);
+  stroke-width: 2.4;
+}
+
+.line__rim,
+.line__spoke {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+}
+
+.line__hub,
+.line__handle {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.line__post-leg {
+  stroke-width: 2.6;
+}
+
+.line__beam-bar {
+  stroke-width: 4;
+}
+
+.line__grip-stem {
+  stroke-width: 2.4;
+}
+
+.line__pivot {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.line__lamp {
+  fill: var(--paper);
+  stroke-width: 1.8;
+}
+
+.line__lamp-glass {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.line__drum {
+  fill: #f4f1ea;
+  stroke-width: 2;
+}
+
+.line__drum-core {
+  fill: var(--paper);
+  stroke: var(--muted-ink);
+  stroke-width: 1.4;
+}
+
+/* The signal at the start of the line, which clears as he sets off. */
+.line__signal-post {
+  stroke-width: 2.4;
+}
+
+.line__signal-cap {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.line__signal-arm {
+  transition: transform 520ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.line__signal-arm.is-clear {
+  transform: rotate(40deg);
+}
+
+.line__arm {
+  fill: var(--paper);
+  stroke-width: 2;
+}
+
+.line__arm-stripe {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.line__signal-lens {
+  fill: var(--amber);
+  stroke-width: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line__sign.is-reached {
+    animation: none;
+  }
+
+  .line__signal-arm {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------- surroundings */
+
+/* The sets round each stop, drawn by script.js in figure units, behind
+   everything else in the world; the signposts stand in front of them. */
+.set {
+  position: absolute;
+  z-index: 0;
+  top: 1px;
+  overflow: visible;
+  transform: translateY(-100%);
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+.set * {
+  vector-effect: non-scaling-stroke;
+}
+
+.set--sign {
+  z-index: 1;
+}
+
+/* The control room's blinking lights, on a layer of their own. */
+.set--lights {
+  z-index: 1;
+  will-change: transform;
+}
+
+.set text {
+  stroke: none;
+  font-synthesis: none;
+}
+
+.s-tree {
+  fill: #efece5;
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+}
+
+.s-paper {
+  fill: var(--paper);
+}
+
+.s-dark {
+  fill: #4d4944;
+}
+
+.s-thin {
+  stroke: var(--muted-ink);
+  stroke-width: 1.1;
+}
+
+.s-amber {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.s-ink {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.s-glow {
+  fill: var(--amber);
+  stroke: none;
+  opacity: 0.18;
+}
+
+.s-glow--soft {
+  opacity: 0.12;
+}
+
+.s-wall {
+  fill: #f4f1ea;
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+}
+
+.s-seam {
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+.s-roof {
+  fill: #e9e4da;
+  stroke-width: 2;
+}
+
+.s-board {
+  fill: #efe7d8;
+  stroke-width: 1.6;
+}
+
+.s-holes {
+  stroke: var(--muted-ink);
+  stroke-width: 2.2;
+  opacity: 0.35;
+}
+
+.s-label {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.s-label--light {
+  fill: var(--paper);
+  font-size: 12px;
+}
+
+.s-graph {
+  stroke: #7fd08f;
+  stroke-width: 1.6;
+}
+
+.s-readout {
+  fill: #c9c4b8;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.s-cable {
+  stroke: #4d4944;
+  stroke-width: 2.2;
+}
+
+.s-rack {
+  fill: #57534d;
+  stroke-width: 2;
+}
+
+.s-rack-seam {
+  stroke: #77726b;
+  stroke-width: 1;
+}
+
+.s-vent {
+  stroke: #837d75;
+  stroke-width: 1;
+}
+
+.s-led {
+  fill: var(--led);
+  stroke: none;
+  animation: led var(--d) steps(1) var(--delay) infinite;
+}
+
+@keyframes led {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.s-grass {
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+}
+
+.s-pebble {
+  fill: #e4dfd5;
+  stroke: var(--muted-ink);
+  stroke-width: 1;
+}
+
+.s-post {
+  fill: #e9e2d3;
+  stroke-width: 1.6;
+}
+
+.s-sign {
+  fill: #f5efe2;
+  stroke-width: 1.8;
+}
+
+.s-sign-text {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-led {
+    animation: none;
+  }
+}
+
+.poi {
+  position: absolute;
+  top: -6px;
+  left: var(--poi-x);
+  display: grid;
+  justify-items: center;
+  color: #686866;
+  transform: translateX(-50%);
+  opacity: var(--project-world-opacity, 1);
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.poi__dot {
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: var(--background);
+}
+
+.poi__label {
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.poi.is-active {
+  color: var(--ink);
+}
+
+.figure {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(100% - var(--floor-level) - 1px);
+  display: block;
+  width: auto;
+  height: var(--fig-h);
+  overflow: visible;
+  transform: translateX(-50%);
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 300ms ease;
+  transform-origin: 50% 100%;
+}
+
+.figure path,
+.figure circle {
+  vector-effect: non-scaling-stroke;
+}
+
+/* The greeting belongs to the opening world, not to a panel. It sits above
+   his head and leaves as soon as the visitor chooses a destination. */
+.intro-speech {
+  --intro-shift: clamp(12px, 3vw, 30px);
+  position: absolute;
+  z-index: 4;
+  bottom: calc(100% - var(--floor-level) + var(--fig-h) + 18px);
+  left: calc(50% - var(--intro-shift));
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 16px 30px 20px;
+  transform: translateX(-50%);
+  transform-origin: 59% 100%; /* its tail, which it pops out of and shrinks back into */
+  color: var(--ink);
+  transition:
+    opacity 200ms ease,
+    transform 220ms cubic-bezier(0.4, 0, 1, 1),
+    bottom 300ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+.intro-speech.is-popping {
+  animation: bubble-pop 440ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+@keyframes bubble-pop {
+  from { transform: translateX(-50%) scale(0.5); }
+  to { transform: translateX(-50%); }
+}
+
+.intro-speech__outline {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(5px 7px 0 rgba(32, 32, 31, 0.08));
+  pointer-events: none;
+}
+
+.intro-speech__paper,
+.intro-speech__line {
+  vector-effect: non-scaling-stroke;
+}
+
+.intro-speech__paper {
+  fill: var(--paper);
+  fill-opacity: 0;
+  stroke: none;
+}
+
+.intro-speech__line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+}
+
+.intro-speech p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(16px, 1.7vw, 20px);
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.intro-speech p span {
+  display: block;
+}
+
+.intro-speech p span + span {
+  margin-top: 3px;
+}
+
+/* His question about sound, answered in the bubble. */
+.intro-speech p .intro-speech__choices {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.intro-speech__choices button {
+  min-width: 68px;
+  padding: 7px 16px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.intro-speech__choices button:hover,
+.intro-speech__choices button:focus-visible,
+.intro-speech__choices button.is-chosen {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.intro-speech__choices button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.intro-speech__choices button.is-chosen {
+  transform: scale(0.94);
+}
+
+.intro-speech__choices button:disabled:not(.is-chosen) {
+  opacity: 0.35;
+}
+
+.intro-speech.is-dismissed {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px) scale(0.82);
+  pointer-events: none;
+}
+
+.scene.has-open-panel:not([data-open-scene="about"]):not([data-open-scene="projects"]):not([data-open-scene="skills"]):not([data-open-scene="experience"]) > .figure,
+.scene.has-open-panel > .speed-lines {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scene.has-open-panel .poi {
+  opacity: 0;
+}
+
+/* Each joint turns about its own pivot, in viewBox units; the nesting
+   composes the transforms down the limb. */
+.rig,
+.lean,
+.leg__thigh,
+.leg__shin,
+.leg__foot,
+.arm__upper,
+.arm__fore {
+  transform-box: view-box;
+  will-change: transform;
+}
+
+.rig {
+  transform-origin: 70px 144px;
+}
+
+/* Only the upper body leans, so the lean cannot tip a planted foot
+   through the floor. */
+.lean {
+  transform-origin: 70px 144px;
+  transform: rotate(-4deg);
+}
+
+.leg__thigh {
+  transform-origin: 70px 144px;
+}
+
+.leg__shin {
+  transform-origin: 70px 194px;
+}
+
+.leg__foot {
+  transform-origin: 70px 242px;
+}
+
+.arm__upper {
+  transform-origin: 70px 74px;
+}
+
+.arm__fore {
+  transform-origin: 70px 112px;
+}
+
+.leg--far,
+.arm--far {
+  opacity: 0.38;
+}
+
+/* ------------------------------------------------------------ run effects */
+
+/* Dust lives in the world, so it stays where his foot threw it while the
+   camera carries on after him. */
+.dust {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.dust i {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--size);
+  height: var(--size);
+  margin-left: calc(var(--size) / -2);
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0;
+  animation: dust-kick var(--life, 560ms) cubic-bezier(0.15, 0.7, 0.3, 1) var(--delay, 0ms) forwards;
+}
+
+@keyframes dust-kick {
+  0% {
+    opacity: var(--alpha, 0.2);
+    transform: translate(0, 0) scale(0.35);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1.5);
+  }
+}
+
+/* Streaks trail behind him at a full sprint. The box is centred on the
+   figure and mirrored with it, so the lines always sit behind his back. */
+.speed-lines {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(100% - var(--floor-level) - 1px);
+  width: calc(var(--fig-h) * 2);
+  height: var(--fig-h);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+}
+
+.speed-lines i {
+  position: absolute;
+  right: 57%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink);
+  opacity: 0;
+  animation: rush 380ms linear infinite paused;
+}
+
+.speed-lines.is-rushing i {
+  animation-play-state: running;
+}
+
+.speed-lines i:nth-child(1) {
+  top: 20%;
+  width: 8%;
+}
+
+.speed-lines i:nth-child(2) {
+  top: 37%;
+  width: 13%;
+  animation-delay: -150ms;
+}
+
+.speed-lines i:nth-child(3) {
+  top: 52%;
+  width: 10%;
+  animation-delay: -270ms;
+}
+
+.speed-lines i:nth-child(4) {
+  top: 68%;
+  width: 12%;
+  animation-delay: -80ms;
+}
+
+.speed-lines i:nth-child(5) {
+  top: 26%;
+  width: 15%;
+  animation-delay: -210ms;
+}
+
+.speed-lines i:nth-child(6) {
+  top: 44%;
+  width: 11%;
+  animation-delay: -320ms;
+}
+
+.speed-lines i:nth-child(7) {
+  top: 61%;
+  width: 16%;
+  animation-delay: -120ms;
+}
+
+.speed-lines i:nth-child(8) {
+  top: 76%;
+  width: 9%;
+  animation-delay: -40ms;
+}
+
+@keyframes rush {
+  0% {
+    opacity: 0;
+    transform: translateX(20%);
+  }
+
+  30% {
+    opacity: 0.4;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-260%);
+  }
+}
+
+/* Turbo sprint speed lines */
+.speed-lines.is-turbo i {
+  height: 2.5px;
+  background: var(--ink);
+  animation: rush-turbo 190ms linear infinite;
+  animation-play-state: running;
+}
+
+.speed-lines.is-turbo i:nth-child(odd) {
+  width: 25%;
+}
+
+.speed-lines.is-turbo i:nth-child(even) {
+  width: 35%;
+}
+
+@keyframes rush-turbo {
+  0% {
+    opacity: 0;
+    transform: translateX(40%);
+  }
+
+  20% {
+    opacity: 0.75;
+  }
+
+  75% {
+    opacity: 0.55;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-360%);
+  }
+}
+
+/* Turbo sprint motion-blur afterimage ghost trail */
+.scene.is-turbo .figure {
+  filter: drop-shadow(-8px 0px 0px rgba(32, 32, 31, 0.32)) drop-shadow(-17px 0px 0px rgba(32, 32, 31, 0.15));
+  transition: filter 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* HUD key hints */
+.sprint-hint {
+  position: fixed;
+  bottom: 24px;
+  left: 28px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(32, 32, 31, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.92;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sprint-hint .hint-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sprint-hint .hint-sep {
+  opacity: 0.35;
+  font-weight: bold;
+}
+
+.sprint-hint kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  background: #f1ede6;
+  border: 1px solid rgba(32, 32, 31, 0.26);
+  border-bottom-width: 2.5px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: transform 0.08s ease, border-width 0.08s ease, background 0.08s ease;
+}
+
+.sprint-hint kbd.is-pressed {
+  transform: translateY(1.5px);
+  border-bottom-width: 1px;
+  background: #d8d2c5;
+  box-shadow: none;
+}
+
+@media (max-width: 600px) {
+  .sprint-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --floor-level: 76%;
+    --fig-h: clamp(145px, 22vh, 190px);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ink: #000;
+  }
+
+  .leg--far,
+  .arm--far {
+    opacity: 0.5;
+  }
+
+  .bench-cam .is-far {
+    opacity: calc(0.5 + 0.5 * var(--behind, 0));
+  }
+}
+
+/* Full portfolio scenes */
+.scene-panels {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+
+.story-panel {
+  position: absolute;
+  inset: 0;
+  padding-top: var(--nav-h);
+  overflow: auto;
+  color: var(--ink);
+  background: transparent;
+  pointer-events: auto;
+  scrollbar-color: var(--muted-ink) transparent;
+  animation: panel-in 380ms ease both;
+}
+
+.story-panel h1,
+.story-panel h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.story-panel h1 {
+  font-size: clamp(48px, 6vw, 92px);
+  line-height: 0.95;
+}
+
+.story-panel h2 {
+  font-size: clamp(28px, 3vw, 44px);
+  line-height: 1.05;
+}
+
+.story-panel p {
+  color: #45433f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(17px, 1.35vw, 22px);
+  line-height: 1.55;
+}
+
+.story-panel h1:focus {
+  outline: none;
+}
+
+.scene-illustration svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scene-illustration .sketch-light,
+.scene-illustration .paper-lines {
+  opacity: 0.38;
+  stroke-width: 2.4;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* About */
+.about-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 54%) minmax(420px, 46%);
+  padding-top: 0;
+}
+
+.about-visual {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  padding: 80px 2vw 0;
+  animation: scene-props-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.about-copy {
+  min-height: 165vh;
+  margin: 110px 3vw 12vh 0;
+  padding: clamp(64px, 8vh, 96px) clamp(36px, 5vw, 80px) 18vh;
+  border: 1px solid rgba(32, 32, 31, 0.42);
+  background: rgba(247, 245, 240, 0.96);
+  box-shadow: 10px 12px 0 rgba(32, 32, 31, 0.06);
+  transform-origin: top left;
+  animation: paper-unfold 700ms 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.about-copy header {
+  margin-bottom: 13vh;
+}
+
+.scene-intro {
+  margin-top: 24px;
+  font-size: clamp(21px, 2vw, 30px) !important;
+}
+
+.about-copy section {
+  max-width: 650px;
+  margin-bottom: 13vh;
+}
+
+.about-copy section p {
+  margin-top: 20px;
+}
+
+@keyframes scene-props-in {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes paper-unfold {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-12px) rotate(-0.8deg); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); transform: translateY(0) rotate(0.2deg); }
+}
+
+/* Projects is a sheet on the right. It slides in once the camera has come
+   round behind him and moved over to make room for it (script.js), so its
+   box matches the About letter's, which is the room the camera leaves. */
+.projects-panel {
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
+.projects-sheet {
+  position: absolute;
+  top: calc(var(--nav-h) + 3vh);
+  right: max(4vw, 24px);
+  bottom: 5vh;
+  width: min(46vw, 620px);
+  overflow-y: auto;
+  padding: clamp(28px, 4.4vh, 56px) clamp(24px, 3.6vw, 52px);
+  border: 1px solid rgba(32, 32, 31, 0.1);
+  background: #fbf8f1;
+  box-shadow: 0 16px 22px rgba(52, 38, 22, 0.1), 0 2px 3px rgba(52, 38, 22, 0.08);
+  pointer-events: auto;
+  scrollbar-color: var(--muted-ink) transparent;
+  animation: sheet-arrive 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.projects-sheet header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(32, 32, 31, 0.14);
+}
+
+.projects-sheet h1 {
+  font-size: clamp(40px, 4.4vw, 64px);
+  line-height: 1;
+}
+
+.projects-sheet .projects-sheet__intro {
+  margin: 12px 0 0;
+  color: var(--muted-ink);
+  font-style: italic;
+}
+
+.project-list {
+  display: grid;
+  margin: clamp(12px, 2.4vh, 28px) 0 clamp(20px, 3.4vh, 40px);
+}
+
+.project-list button {
+  display: grid;
+  grid-template-columns: 2.4em 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: clamp(9px, 1.5vh, 14px) 4px;
+  border: 0;
+  border-bottom: 1px solid rgba(32, 32, 31, 0.14);
+  color: var(--muted-ink);
+  background: transparent;
+  font-size: clamp(18px, 1.5vw, 22px);
+  text-align: left;
+  cursor: pointer;
+  transition: color 160ms ease, padding-left 220ms ease;
+  animation: sheet-row-in 360ms ease both;
+  animation-delay: calc(240ms + var(--row, 0) * 60ms);
+}
+
+.project-list button::after {
+  content: "\2192" / "";
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 160ms ease, transform 220ms ease;
+}
+
+.project-list button:hover,
+.project-list button:focus-visible,
+.project-list button[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.project-list button[aria-selected="true"] {
+  padding-left: 14px;
+}
+
+.project-list button[aria-selected="true"]::after {
+  opacity: 1;
+  transform: none;
+}
+
+.project-list button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.project-list__number {
+  font-size: 0.6em;
+  letter-spacing: 0.1em;
+}
+
+.project-detail {
+  animation: sheet-row-in 360ms ease 560ms both;
+}
+
+.projects-sheet h2 {
+  font-size: clamp(26px, 2.4vw, 34px);
+}
+
+.projects-panel.is-folding .projects-sheet {
+  animation: sheet-leave 280ms ease-in both;
+}
+
+@keyframes sheet-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+}
+
+@keyframes sheet-leave {
+  to {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+}
+
+@keyframes sheet-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Narrow screens have no room beside the bench, so the sheet takes the
+   lower part of the screen and the camera lifts the bench above it
+   (SHEET_TOP in script.js matches its top). */
+@media (max-width: 760px) {
+  .projects-sheet {
+    top: 52%;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+    padding: 22px 20px;
+  }
+
+  .projects-sheet h1 {
+    font-size: 36px;
+  }
+
+  @keyframes sheet-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+  }
+
+  @keyframes sheet-leave {
+    to {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projects-sheet,
+  .projects-sheet * {
+    animation: none !important;
+  }
+}
+
+/* The Experience timetable: a sheet like the Projects one, with the stops
+   strung on a line down its left side and the current one lit. */
+.line-panel {
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
+.line-sheet {
+  position: absolute;
+  top: calc(var(--nav-h) + 3vh);
+  right: max(4vw, 24px);
+  bottom: 5vh;
+  width: min(46vw, 620px);
+  overflow-y: auto;
+  padding: clamp(28px, 4.4vh, 56px) clamp(24px, 3.6vw, 52px);
+  border: 1px solid rgba(32, 32, 31, 0.1);
+  background: #fbf8f1;
+  box-shadow: 0 16px 22px rgba(52, 38, 22, 0.1), 0 2px 3px rgba(52, 38, 22, 0.08);
+  pointer-events: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  animation: sheet-arrive 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.line-sheet::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.line-sheet header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(32, 32, 31, 0.14);
+}
+
+.line-sheet .line-sheet__kicker {
+  margin: 0 0 10px;
+  color: #a8611f;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.line-sheet h1 {
+  font-size: clamp(40px, 4.4vw, 64px);
+  line-height: 1;
+}
+
+.line-sheet .line-sheet__intro {
+  margin: 12px 0 0;
+  color: var(--muted-ink);
+  font-style: italic;
+}
+
+.line-stops {
+  margin: clamp(20px, 3.4vh, 36px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line-stop {
+  position: relative;
+  padding: 0 0 clamp(22px, 3.4vh, 34px) 36px;
+  animation: sheet-row-in 360ms ease both;
+  animation-delay: calc(240ms + var(--row, 0) * 90ms);
+}
+
+/* The line between stops, and each stop's dot on it. */
+.line-stop::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: -4px;
+  left: 7px;
+  width: 2px;
+  background: var(--ink);
+}
+
+.line-stop:last-child::before {
+  display: none;
+}
+
+.line-stop::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: #fbf8f1;
+}
+
+.line-stop.is-current::after {
+  border-color: var(--amber);
+  background: var(--amber);
+  box-shadow: 0 0 0 4px rgba(216, 137, 47, 0.22);
+}
+
+.line-sheet .line-stop__dates {
+  margin: 0 0 6px;
+  color: var(--muted-ink);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.line-stop.is-current .line-stop__dates {
+  color: #a8611f;
+}
+
+.line-sheet h2 {
+  font-size: clamp(24px, 2.2vw, 32px);
+}
+
+.line-sheet .line-stop__where {
+  margin: 4px 0 10px;
+  color: var(--muted-ink);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.line-sheet .line-stop__summary {
+  margin: 0;
+  font-size: clamp(15px, 1.15vw, 18px);
+}
+
+.line-panel.is-folding .line-sheet {
+  animation: sheet-leave 280ms ease-in both;
+}
+
+/* Narrow screens: the timetable takes the bottom of the screen, as the
+   Projects sheet does, and the scene lifts above it (see lineFraming). */
+@media (max-width: 760px) {
+  .line-sheet {
+    top: 52%;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+    padding: 22px 20px;
+  }
+
+  .line-sheet h1 {
+    font-size: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-sheet,
+  .line-sheet * {
+    animation: none !important;
+  }
+}
+
+.chapter-buttons button,
+.dojo-controls button {
+  border: 0;
+  color: var(--muted-ink);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.project-label,
+.chapter-detail > p:first-child {
+  margin: 0 0 14px;
+  font-family: var(--font-display) !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.project-detail h2 {
+  margin-bottom: 16px;
+}
+
+.project-detail dl {
+  display: grid;
+  gap: 12px;
+  margin: 32px 0;
+}
+
+.project-detail dl div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  padding-top: 10px;
+  border-top: 1px solid rgba(32,32,31,0.22);
+}
+
+.project-detail dt,
+.project-detail dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+.project-detail dt {
+  color: var(--muted-ink);
+  text-transform: uppercase;
+}
+
+.project-detail a {
+  align-self: flex-start;
+  color: var(--ink);
+  font-size: 15px;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 5px;
+}
+
+/* Experience */
+.experience-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.experience-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.experience-track {
+  height: 360vh;
+}
+
+.experience-sticky {
+  position: sticky;
+  top: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 58%) minmax(400px, 42%);
+  height: 100vh;
+  padding-top: var(--nav-h);
+}
+
+.course {
+  min-height: 0;
+  padding: 26px 4vw 34px;
+}
+
+.course #career-path {
+  stroke: rgba(32,32,31,0.2);
+  stroke-width: 2;
+  stroke-dasharray: 8 12;
+}
+
+#experience-climber {
+  fill: var(--ink);
+  stroke-width: 5;
+}
+
+.experience-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px clamp(40px, 6vw, 100px);
+  margin: 70px 3vw 52px 0;
+  border: 1px solid rgba(32, 32, 31, 0.34);
+  background: rgba(247, 245, 240, 0.95);
+  box-shadow: 10px 12px 0 rgba(32, 32, 31, 0.06);
+  animation: paper-unfold 620ms 120ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.chapter-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 42px 0 52px;
+}
+
+.chapter-buttons button {
+  padding: 13px 10px;
+  border: 1px solid rgba(32,32,31,0.24);
+  text-align: left;
+}
+
+.chapter-buttons button[aria-current="step"] {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.chapter-detail {
+  min-height: 230px;
+  padding-left: 28px;
+  border-left: 1px solid rgba(32,32,31,0.32);
+}
+
+/* ------------------------------------------------------------ the terminal
+   At the Skills stop: an operator's console with a big CRT, drawn by
+   script.js through the same camera as the Projects bench. Once the camera
+   is round behind him, the terminal is laid onto the CRT's glass. */
+.bench-cam.term-figure {
+  z-index: 5; /* over the terminal, as he is nearer the camera than the glass */
+}
+
+.term-cam__beige { fill: #efe7d6; }
+.term-cam__beige-dark { fill: #ddd2bc; }
+.term-cam__dark { fill: #5f5a53; }
+.term-cam__lines--light { stroke: #a39d92; }
+.term-cam__keys { stroke: #9a917f; stroke-width: calc(2.6px * var(--zoom, 1)); }
+.term-cam__glass { fill: #0f2419; transition: fill 400ms ease; }
+.term-cam.is-on .term-cam__glass { fill: #143322; }
+.term-cam__power { fill: #8b8b85; stroke: none; }
+.term-cam.is-on .term-cam__power { fill: #62f58e; }
+.term-cam__note { fill: #f6e27a; stroke-width: calc(1.2px * var(--zoom, 1)); }
+.term-cam__mug { fill: #d9674b; }
+
+.term-cam__cable {
+  stroke: var(--ink);
+  stroke-width: calc(2.4px * var(--zoom, 1));
+}
+
+.term-cam__led {
+  fill: #62f58e;
+  stroke: none;
+  animation: term-blink 1.3s steps(1) infinite;
+}
+
+.term-cam__led--1 { animation-duration: 0.7s; }
+.term-cam__led--2 { fill: #ffb347; animation-duration: 2.1s; }
+.term-cam__led--3 { animation-duration: 0.95s; animation-delay: -0.4s; }
+.term-cam__led--4 { fill: #ffb347; animation-duration: 1.7s; animation-delay: -0.9s; }
+.term-cam__led--5 { animation-duration: 0.55s; }
+
+@keyframes term-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.25; }
+}
+
+/* The terminal's panel is just the screen, laid onto the glass. */
+.term-panel {
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
+.term-screen {
+  --phosphor: #9dffbe;
+  --phosphor-dim: #5cbd82;
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 1.5em 8.5em 1.5em 2em; /* clear of his head, over the right-hand edge */
+  border-radius: 3% / 4%;
+  color: var(--phosphor);
+  background: radial-gradient(ellipse at 50% 46%, #143a25 0%, #0a1f14 60%, #040b07 100%);
+  box-shadow: inset 0 0 3em rgba(0, 0, 0, 0.8), inset 0 0 0.9em rgba(120, 255, 170, 0.18);
+  font-family: "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace;
+  line-height: 1.38;
+  text-shadow: 0 0 0.35em rgba(110, 255, 160, 0.55);
+  transform-origin: 0 0;
+  pointer-events: auto;
+}
+
+/* Scanlines, and a faint glare that flickers. */
+.term-screen::after,
+.term-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.term-screen::after {
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+}
+
+.term-screen::before {
+  background: radial-gradient(ellipse at 28% 18%, rgba(255, 255, 255, 0.08), transparent 55%);
+  animation: term-flicker 3.6s infinite;
+}
+
+@keyframes term-flicker {
+  0%, 100% { opacity: 1; }
+  47% { opacity: 0.8; }
+  49% { opacity: 1; }
+  51% { opacity: 0.88; }
+}
+
+.term-screen p,
+.term-screen ul,
+.term-screen button {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-shadow: inherit;
+}
+
+/* The tube warming up: a bright line that opens into the picture. */
+.term-screen.is-booting {
+  animation: crt-on 0.55s ease-out both;
+}
+
+@keyframes crt-on {
+  0% { clip-path: inset(49.6% 48% 49.6% 48%); filter: brightness(4); }
+  35% { clip-path: inset(49.6% 0 49.6% 0); filter: brightness(3); }
+  100% { clip-path: inset(0); filter: brightness(1); }
+}
+
+.term-panel.is-folding .term-screen {
+  animation: crt-off 0.4s ease-in both;
+}
+
+@keyframes crt-off {
+  0% { clip-path: inset(0); filter: brightness(1); }
+  55% { clip-path: inset(49.6% 0 49.6% 0); filter: brightness(3); }
+  100% { clip-path: inset(49.6% 50% 49.6% 50%); filter: brightness(4); }
+}
+
+/* Lines appear as the terminal gets to them. */
+.term-screen [data-boot],
+.term-line--list,
+.term-line--show,
+.term-list button,
+.term-title,
+.term-description,
+.term-tags li {
+  opacity: 0;
+}
+
+.term-screen .is-shown {
+  opacity: 1;
+}
+
+.term-line--dim {
+  color: var(--phosphor-dim);
+}
+
+.term-line--list {
+  margin-top: 0.8em;
+}
+
+.term-prompt {
+  color: #e2ffec;
+}
+
+.term-list {
+  display: grid;
+  justify-items: start;
+  margin: 0.25em 0 0.15em;
+}
+
+.term-line--hint {
+  margin-bottom: 0.7em;
+  font-size: 0.85em;
+}
+
+.term-line--hint:not(.is-shown) {
+  opacity: 0;
+}
+
+.term-list button {
+  padding: 0.05em 0.45em;
+  border: 0;
+  border-radius: 0.15em;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.term-list button:hover,
+.term-list button:focus-visible {
+  outline: none;
+  background: rgba(157, 255, 190, 0.14);
+}
+
+.term-list button[aria-selected="true"] {
+  background: var(--phosphor);
+  color: #07140c;
+  text-shadow: none;
+}
+
+.term-list__key {
+  opacity: 0.7;
+}
+
+.term-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.05em;
+  margin-left: 0.15em;
+  vertical-align: -0.18em;
+  background: currentColor;
+  animation: term-cursor 1s steps(1) infinite;
+}
+
+@keyframes term-cursor {
+  50% { opacity: 0; }
+}
+
+.term-out {
+  margin-top: 0.35em;
+}
+
+.term-title {
+  color: #eaffef;
+  font-weight: 700;
+}
+
+.term-title::before {
+  content: "> ";
+  color: var(--phosphor-dim);
+}
+
+.term-description {
+  margin: 0.2em 0 0.6em !important;
+}
+
+.term-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2em 1.1em;
+  padding: 0;
+  list-style: none;
+}
+
+.term-tags li::before {
+  content: "[+] ";
+  color: var(--phosphor-dim);
+}
+
+@media (max-width: 760px) {
+  .term-user {
+    display: none;
+  }
+
+  .term-screen {
+    padding: 0.9em 5.2em 0.9em 1.2em;
+  }
+
+  /* Less room on a phone: skip the banner and the hint. */
+  .term-screen [data-boot],
+  .term-line--hint {
+    display: none;
+  }
+
+  .term-line--list {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-screen::before,
+  .term-screen.is-booting,
+  .term-panel.is-folding .term-screen,
+  .term-cursor,
+  .term-cam__led {
+    animation: none;
+  }
+}
+
+.roster-list details {
+  border-top: 1px solid rgba(32,32,31,0.42);
+}
+
+.roster-list details:last-child {
+  border-bottom: 1px solid rgba(32,32,31,0.42);
+}
+
+.roster-list summary {
+  padding: 17px 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 23px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.roster-list details p {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--muted-ink);
+}
+
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 24px;
+}
+
+.skill-tags span {
+  display: inline-block;
+  padding: 4px 9px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  background: rgba(32, 32, 31, 0.04);
+}
+
+@media (max-width: 800px) {
+  .story-panel {
+    padding-top: calc(var(--nav-h) + 10px);
+  }
+
+  .story-panel h1 {
+    font-size: clamp(44px, 14vw, 64px);
+  }
+
+  .about-panel,
+  .skills-panel {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .about-visual {
+    position: relative;
+    height: 48vh;
+    min-height: 360px;
+    padding-top: 70px;
+  }
+
+  .fire-glow {
+    left: 67%;
+    bottom: 10%;
+  }
+
+  .about-copy {
+    min-height: auto;
+    margin: 0 18px 110px;
+    padding: 52px 28px 120px;
+    background: var(--paper);
+  }
+
+  .about-copy header,
+  .about-copy section {
+    margin-bottom: 72px;
+  }
+
+  .experience-sticky {
+    display: block;
+    padding-top: calc(var(--nav-h) + 10px);
+  }
+
+  .course {
+    height: 54vh;
+    padding: 10px 12px;
+  }
+
+  .experience-copy {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 42vh;
+    justify-content: flex-start;
+    margin: 0;
+    padding: 18px 24px 70px;
+    background: linear-gradient(180deg, rgba(240,238,233,0.88), var(--background) 22%);
+  }
+
+  .experience-copy h1 {
+    font-size: 42px;
+  }
+
+  .chapter-buttons {
+    grid-template-columns: repeat(4, 1fr);
+    margin: 16px 0 18px;
+  }
+
+  .chapter-buttons button {
+    padding: 9px 3px;
+    font-size: 8px;
+    text-align: center;
+  }
+
+  .chapter-detail {
+    min-height: 0;
+    padding-left: 15px;
+  }
+
+  .chapter-detail h2 {
+    font-size: 26px;
+  }
+
+  .chapter-detail p:last-child {
+    margin: 8px 0;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .dojo {
+    min-height: 48vh;
+    height: 48vh;
+    padding: 0 6px 68px;
+  }
+
+  .dojo-controls {
+    right: 10px;
+    bottom: 12px;
+    left: 10px;
+  }
+
+  .dojo-controls button {
+    padding: 9px 3px;
+    font-size: 9px;
+  }
+
+  .skills-roster {
+    max-height: none;
+    margin: 28px 18px 110px;
+    padding: 32px 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dust,
+  .speed-lines {
+    display: none;
+  }
+
+  .story-panel,
+  .about-visual,
+  .about-copy,
+  .about-visual .fire-lines,
+  .fire-glow,
+  .experience-copy,
+  .dojo {
+    animation: none;
+  }
+
+  .scene > .figure {
+    transition: none;
+  }
+
+  .intro-speech {
+    transition: none;
+    animation: none !important;
+  }
+
+  .intro-speech__paper {
+    fill-opacity: 1;
+  }
+
+  .intro-speech__line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .intro-speech p {
+    opacity: 1;
+    transform: none;
+  }
+
+  .experience-scroll {
+    scroll-behavior: auto;
+  }
+}
+
+/* ------------------------------------------------------------------ type */
+
+/* Stickline carries names, labels and headings. Long-form copy stays in
+   Georgia, which reads better at paragraph length. */
+.poi__label,
+.story-panel h1,
+.story-panel h2,
+.project-list button,
+.chapter-buttons button,
+.dojo-controls button,
+.project-detail dt,
+.roster-list summary {
+  font-family: var(--font-display);
+  font-synthesis: none;
+}
+
+.story-panel h1 {
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.story-panel h2,
+.roster-list summary {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.poi__label,
+.project-detail dt {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* Controls read in mixed case like the navbar, so the lowercase letters
+   show as Stickline's small capitals. */
+.project-list button,
+.chapter-buttons button,
+.dojo-controls button {
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+/* Narrow screens: the sound button on one row, the route on the next. */
+@media (max-width: 760px) {
+  :root {
+    --nav-h: 108px;
+  }
+
+  .navbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 48px auto;
+    align-content: center;
+    padding: 6px 16px 8px;
+  }
+
+  .navbar__actions {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .map-button {
+    grid-row: 1;
+    grid-column: 2;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .poi-nav {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  .poi-nav button {
+    padding: 10px 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (max-width: 380px) {
+  .map-button {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+}
+
+/* ------------------------------------------------------------ about paper */
+
+/* About is a letter that unfolds beside the campfire. The sheet is three
+   flaps: it arrives folded in thirds, the top flap swings up, the bottom
+   flap swings down, then the writing fades in. Leaving plays it backwards
+   (script.js waits FOLD_AWAY_MS for that before hiding the panel). */
+.about-panel {
+  --paper-front: #faf6ee;
+  --paper-back: #eae1d2;
+  --paper-ink: #29231d;
+  --paper-muted-ink: #685b4f;
+  --paper-margin-red: rgba(188, 72, 58, 0.22);
+  --paper-rule: rgba(125, 95, 65, 0.075);
+  --paper-edge-burn: rgba(130, 88, 44, 0.08);
+  --paper-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.18 0 0 0 0 0.13 0 0 0 0 0.08 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
+.about-paper {
+  position: absolute;
+  top: calc(var(--nav-h) + 3vh);
+  right: max(4vw, 24px);
+  bottom: 5vh;
+  width: min(46vw, 620px);
+  pointer-events: auto;
+  transform: rotate(-0.85deg);
+  transform-origin: 90% 12%;
+  animation: paper-arrive 360ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.about-paper__sheet {
+  position: absolute;
+  inset: 0;
+  perspective: 1600px;
+  filter:
+    drop-shadow(0 2px 4px rgba(45, 30, 15, 0.08))
+    drop-shadow(0 12px 24px rgba(40, 25, 12, 0.16))
+    drop-shadow(0 28px 48px rgba(35, 20, 10, 0.12))
+    drop-shadow(-8px 10px 22px rgba(245, 158, 72, 0.12));
+}
+
+.about-paper__flap {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: calc(100% / 3 + 0.5px);
+  transform-style: preserve-3d;
+}
+
+.about-paper__flap--top {
+  top: 0;
+  transform-origin: 50% 100%;
+  animation: flap-top-open 560ms cubic-bezier(0.3, 0.6, 0.2, 1) 300ms both;
+}
+
+.about-paper__flap--middle {
+  top: calc(100% / 3);
+}
+
+.about-paper__flap--bottom {
+  bottom: 0;
+  transform-origin: 50% 0;
+  animation: flap-bottom-open 560ms cubic-bezier(0.3, 0.6, 0.2, 1) 660ms both;
+}
+
+.about-paper__flap::before,
+.about-paper__flap::after {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  content: "";
+}
+
+/* The written-on side: paper tooth, warmth from the campfire on the left,
+   and subtle sun-aged edges. */
+.about-paper__flap::before {
+  background:
+    var(--paper-grain),
+    linear-gradient(90deg, rgba(245, 158, 72, 0.16) 0%, rgba(245, 158, 72, 0.05) 30%, transparent 60%),
+    linear-gradient(180deg, var(--paper-edge-burn) 0%, transparent 14px, transparent calc(100% - 14px), var(--paper-edge-burn) 100%),
+    var(--paper-front);
+  box-shadow: inset 0 0 28px rgba(135, 95, 50, 0.06);
+}
+
+.about-paper__flap--top::before {
+  border-radius: 4px 4px 0 0;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  background:
+    linear-gradient(135deg, transparent calc(100% - 16px), rgba(215, 200, 180, 0.95) calc(100% - 15px), rgba(185, 165, 140, 0.45) 100%),
+    var(--paper-grain),
+    linear-gradient(to top, rgba(70, 50, 30, 0.04), transparent 10px),
+    linear-gradient(90deg, rgba(245, 158, 72, 0.16) 0%, rgba(245, 158, 72, 0.05) 30%, transparent 60%),
+    var(--paper-front);
+}
+
+.about-paper__flap--middle::before {
+  background:
+    var(--paper-grain),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.75), transparent 4px),
+    linear-gradient(to top, rgba(70, 50, 30, 0.04), transparent 8px),
+    linear-gradient(90deg, rgba(245, 158, 72, 0.16) 0%, rgba(245, 158, 72, 0.05) 30%, transparent 60%),
+    var(--paper-front);
+}
+
+.about-paper__flap--bottom::before {
+  border-radius: 0 0 4px 4px;
+  background:
+    var(--paper-grain),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.75), transparent 4px),
+    linear-gradient(to bottom, transparent calc(100% - 12px), var(--paper-edge-burn) 100%),
+    linear-gradient(90deg, rgba(245, 158, 72, 0.16) 0%, rgba(245, 158, 72, 0.05) 30%, transparent 60%),
+    var(--paper-front);
+}
+
+/* The back of the sheet, seen while a flap is still folded over. */
+.about-paper__flap::after {
+  background:
+    var(--paper-grain),
+    linear-gradient(to bottom, rgba(70, 50, 30, 0.06), transparent 22px),
+    var(--paper-back);
+  transform: rotateX(180deg);
+  box-shadow: inset 0 0 25px rgba(110, 80, 45, 0.08);
+}
+
+.about-paper__content {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: clamp(26px, 4vh, 48px) clamp(22px, 3.4vw, 44px) clamp(30px, 4.4vh, 52px) clamp(32px, 4vw, 56px);
+  color: var(--paper-ink);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  animation: paper-writing-in 420ms ease 1150ms both;
+
+  /* Ruled paper lines, classic left margin guide, and persistent fold crease impressions */
+  background-image:
+    /* Upper fold crease impression at 33.3% */
+    linear-gradient(to bottom,
+      transparent calc(33.3% - 4px),
+      rgba(70, 50, 30, 0.06) calc(33.3% - 1px),
+      rgba(255, 255, 255, 0.82) 33.3%,
+      rgba(70, 50, 30, 0.03) calc(33.3% + 2px),
+      transparent calc(33.3% + 6px)
+    ),
+    /* Lower fold crease impression at 66.6% */
+    linear-gradient(to bottom,
+      transparent calc(66.6% - 4px),
+      rgba(70, 50, 30, 0.06) calc(66.6% - 1px),
+      rgba(255, 255, 255, 0.82) 66.6%,
+      rgba(70, 50, 30, 0.03) calc(66.6% + 2px),
+      transparent calc(66.6% + 6px)
+    ),
+    /* Vertical red/rose margin guide line (like stationery/legal dispatch paper) */
+    linear-gradient(90deg, transparent 52px, var(--paper-margin-red) 53px, transparent 54px),
+    /* Faint horizontal ruled notebook lines */
+    repeating-linear-gradient(transparent, transparent 31px, var(--paper-rule) 31px, var(--paper-rule) 32px);
+  background-attachment: local, local, local, local;
+}
+
+.about-paper__content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.about-paper header {
+  position: relative;
+  padding-bottom: 18px;
+  border-bottom: 1.5px dashed rgba(80, 60, 40, 0.22);
+}
+
+.about-paper h1 {
+  font-size: clamp(38px, 4.2vw, 58px);
+  line-height: 1;
+  color: var(--paper-ink);
+  letter-spacing: -0.01em;
+}
+
+.about-paper .about-paper__intro {
+  margin: 10px 0 0;
+  color: var(--paper-muted-ink);
+  font-style: italic;
+  font-size: clamp(15px, 1.15vw, 17px);
+}
+
+.about-paper section {
+  margin-top: clamp(16px, 2.4vh, 26px);
+  position: relative;
+}
+
+.about-paper h2 {
+  font-size: clamp(16px, 1.5vw, 20px);
+  color: var(--paper-ink);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-paper h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--paper-rule);
+}
+
+.about-paper p {
+  margin: 6px 0 0;
+  font-size: clamp(14px, 1.1vw, 17px);
+  line-height: 1.6;
+  color: var(--paper-ink);
+}
+
+.about-paper__signoff {
+  margin-top: clamp(20px, 3vh, 32px);
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.about-paper__sign-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--paper-rule);
+}
+
+.about-paper__signature {
+  margin: 0 !important;
+  font-family: inherit;
+  font-style: italic;
+  font-weight: 600;
+  font-size: clamp(15px, 1.25vw, 19px) !important;
+  color: var(--paper-ink);
+  letter-spacing: 0.04em;
+  opacity: 0.88;
+}
+
+.about-panel.is-folding .about-paper__content {
+  animation: paper-writing-out 140ms ease both;
+}
+
+.about-panel.is-folding .about-paper__flap--bottom {
+  animation: flap-bottom-close 260ms cubic-bezier(0.5, 0, 0.8, 0.4) 90ms both;
+}
+
+.about-panel.is-folding .about-paper__flap--top {
+  animation: flap-top-close 260ms cubic-bezier(0.5, 0, 0.8, 0.4) 230ms both;
+}
+
+.about-panel.is-folding .about-paper {
+  animation: paper-leave 200ms ease-in 430ms both;
+}
+
+@keyframes paper-arrive {
+  from {
+    opacity: 0;
+    transform: translate(-30px, 16px) scale(0.94) rotate(-2.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-0.85deg);
+  }
+}
+
+@keyframes paper-leave {
+  from {
+    opacity: 1;
+    transform: rotate(-0.85deg);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-24px, 14px) scale(0.94) rotate(-2deg);
+  }
+}
+
+@keyframes flap-top-open {
+  from { transform: rotateX(-180deg); }
+  to { transform: rotateX(0deg); }
+}
+
+@keyframes flap-bottom-open {
+  from { transform: rotateX(180deg); }
+  to { transform: rotateX(0deg); }
+}
+
+@keyframes flap-top-close {
+  from { transform: rotateX(0deg); }
+  to { transform: rotateX(-180deg); }
+}
+
+@keyframes flap-bottom-close {
+  from { transform: rotateX(0deg); }
+  to { transform: rotateX(180deg); }
+}
+
+@keyframes paper-writing-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes paper-writing-out {
+  to { opacity: 0; }
+}
+
+/* Narrow screens: he and the fire sit centred below, the letter unfolds
+   in the sky above his head. */
+@media (max-width: 760px) {
+  .about-paper {
+    top: calc(var(--nav-h) + 12px);
+    right: 14px;
+    bottom: calc(100% - var(--floor-level) + var(--fig-h) * 0.82 + 14px);
+    left: 14px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campfire,
+  .campfire *,
+  .about-paper,
+  .about-paper * {
+    animation: none !important;
+  }
+
+  .campfire__ember,
+  .campfire__smoke {
+    display: none;
+  }
+
+  .speed-lines.is-turbo i {
+    animation: none !important;
+  }
+
+  .scene.is-turbo .figure {
+    filter: none !important;
+  }
+}

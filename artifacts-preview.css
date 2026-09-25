@@ -1,0 +1,352 @@
+@font-face {
+  font-family: "Stickline";
+  src: url("fonts/stickline-regular.woff") format("woff");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Stickline";
+  src: url("fonts/stickline-bold.woff") format("woff");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --preview-ink: #20201f;
+  --preview-muted: #6b6965;
+  --preview-paper: #f7f4ed;
+  --preview-bg: #dedddb;
+  --preview-line: rgba(32, 32, 31, 0.18);
+  --preview-accent: #c57c3d;
+  font-family: "Stickline", ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--preview-ink);
+  background: var(--preview-bg);
+}
+
+button,
+a {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.preview-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 118px;
+  padding: 26px clamp(22px, 4vw, 64px) 24px;
+  border-bottom: 1px solid var(--preview-line);
+}
+
+.preview-header__label,
+.artifact-inspector__label,
+#artifact-place {
+  margin: 0 0 7px;
+  color: var(--preview-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.preview-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 46px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+}
+
+.preview-header a {
+  padding-bottom: 3px;
+  border-bottom: 1px solid currentColor;
+  color: var(--preview-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+}
+
+main {
+  padding: 20px clamp(22px, 4vw, 64px) clamp(28px, 4vw, 56px);
+}
+
+.artifact-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.artifact-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.artifact-tabs button {
+  flex: 0 0 auto;
+  padding: 9px 14px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.artifact-tabs button:hover,
+.artifact-tabs button:focus-visible {
+  border-color: var(--preview-line);
+  outline: none;
+}
+
+.artifact-tabs button[aria-selected="true"] {
+  color: var(--preview-paper);
+  background: var(--preview-ink);
+}
+
+.artifact-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 310px);
+  min-height: calc(100vh - 190px);
+  border: 1px solid var(--preview-line);
+  background: var(--preview-paper);
+  box-shadow: 0 24px 70px rgba(32, 32, 31, 0.08);
+}
+
+.artifact-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 620px;
+  overflow: hidden;
+  border-right: 1px solid var(--preview-line);
+  background: #b9b6bf;
+}
+
+.artifact-stage iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.artifact-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--preview-muted);
+  background: var(--preview-bg);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+.artifact-stage.is-ready .artifact-loading {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.artifact-inspector {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 38px;
+  padding: clamp(26px, 3vw, 42px);
+}
+
+.artifact-inspector h2 {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 48px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.94;
+}
+
+#artifact-description {
+  max-width: 28ch;
+  margin: 18px 0 0;
+  color: var(--preview-muted);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.artifact-actions {
+  display: grid;
+  gap: 7px;
+}
+
+.artifact-actions button {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--preview-line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.artifact-actions button::before {
+  color: var(--preview-muted);
+  content: attr(data-number);
+  font-size: 11px;
+}
+
+.artifact-actions button::after {
+  content: "Play";
+  color: var(--preview-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.artifact-actions button:hover,
+.artifact-actions button:focus-visible,
+.artifact-actions button[aria-pressed="true"] {
+  color: var(--preview-accent);
+  outline: none;
+}
+
+.artifact-actions button[aria-pressed="true"]::after {
+  color: var(--preview-accent);
+  content: "Playing";
+}
+
+.artifact-hint {
+  margin: 0;
+  color: var(--preview-muted);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--preview-line);
+  border-radius: 3px;
+  color: var(--preview-ink);
+  background: #ebe8e1;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .preview-header {
+    min-height: 92px;
+    align-items: center;
+  }
+
+  .preview-header__label,
+  .preview-header a span {
+    display: none;
+  }
+
+  .artifact-view {
+    grid-template-columns: 1fr;
+  }
+
+  .artifact-stage {
+    min-height: min(62vh, 620px);
+    border-right: 0;
+    border-bottom: 1px solid var(--preview-line);
+  }
+
+  .artifact-inspector {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 1fr);
+  }
+
+  .artifact-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .preview-header {
+    padding-inline: 16px;
+  }
+
+  .preview-header h1 {
+    font-size: 26px;
+  }
+
+  .preview-header a {
+    max-width: 90px;
+    border: 0;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: right;
+  }
+
+  main {
+    padding: 12px 0 0;
+  }
+
+  .artifact-tabs {
+    padding-inline: 10px;
+  }
+
+  .artifact-view {
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .artifact-stage {
+    min-height: 54vh;
+  }
+
+  .artifact-inspector {
+    display: block;
+    padding: 24px 18px 30px;
+  }
+
+  .artifact-inspector__heading {
+    margin-bottom: 28px;
+  }
+
+  .artifact-inspector h2 {
+    font-size: 36px;
+  }
+
+  #artifact-description {
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artifact-loading {
+    transition: none;
+  }
+}
+

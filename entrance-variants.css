@@ -1,0 +1,146 @@
+/* Site-native entrance variants. Everything here is dormant unless the
+   preview API sets data-entrance-weather on the real portfolio scene. */
+
+.entrance-weather-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.scene[data-entrance-weather] .entrance-weather-layer { opacity: 1; }
+
+.entrance-weather-layer::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entrance-weather-layer[data-weather="rain"]::before {
+  background: rgba(75, 91, 99, 0.1);
+  mix-blend-mode: multiply;
+  opacity: 1;
+}
+
+.entrance-rain,
+.entrance-snow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.entrance-weather-layer[data-weather="rain"] .entrance-rain,
+.entrance-weather-layer[data-weather="snow"] .entrance-snow { opacity: 1; }
+
+.entrance-rain i {
+  position: absolute;
+  top: -16vh;
+  left: var(--x);
+  width: 1.5px;
+  height: clamp(24px, 5vh, 44px);
+  background: color-mix(in srgb, #496975 74%, transparent);
+  rotate: 15deg;
+  animation: entrance-rain-fall var(--d) linear infinite;
+  animation-delay: var(--delay);
+}
+
+.entrance-snow i {
+  position: absolute;
+  top: -12px;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border: 1px solid rgba(94, 107, 111, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.86);
+  animation: entrance-snow-fall var(--d) linear infinite;
+  animation-delay: var(--delay);
+}
+
+.entrance-puddle {
+  position: absolute;
+  top: calc(var(--floor-level) - 4px);
+  left: 34%;
+  width: clamp(76px, 10vw, 142px);
+  height: clamp(12px, 2.2vh, 22px);
+  border: 1.5px solid #607982;
+  border-radius: 50%;
+  background: rgba(122, 159, 171, 0.3);
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(1.25);
+}
+
+.entrance-weather-layer[data-weather="rain"] .entrance-puddle { opacity: 1; }
+
+.entrance-snow-floor {
+  position: absolute;
+  top: var(--floor-level);
+  right: 0;
+  left: 0;
+  height: 12px;
+  border-top: 1px solid rgba(111, 127, 132, 0.72);
+  background: rgba(251, 252, 252, 0.76);
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.entrance-weather-layer[data-weather="snow"] .entrance-snow-floor { opacity: 1; }
+
+.entrance-props {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.entrance-props * { vector-effect: non-scaling-stroke; }
+
+.entrance-prop { opacity: 0; }
+
+.entrance-prop--umbrella .entrance-prop__fill {
+  fill: color-mix(in srgb, var(--paper) 70%, #6d7a7d);
+}
+
+.entrance-prop--hat .entrance-prop__fill { fill: var(--paper); }
+
+.entrance-prop--skis {
+  stroke: color-mix(in srgb, var(--ink) 78%, #66808a);
+  stroke-width: 3.2;
+}
+
+.entrance-prop--powder {
+  fill: rgba(255, 255, 255, 0.92);
+  stroke: #9ba9ad;
+  stroke-width: 1.3;
+}
+
+.scene[data-entrance-weather="rain"] .prop-breath,
+.scene[data-entrance-weather="snow"] .prop-breath { opacity: 0; }
+
+@keyframes entrance-rain-fall {
+  to { translate: -14vw 124vh; }
+}
+
+@keyframes entrance-snow-fall {
+  to { translate: 7vw 104vh; rotate: 240deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrance-weather-layer,
+  .entrance-rain i,
+  .entrance-snow i {
+    transition: none;
+    animation: none;
+  }
+
+  .entrance-rain i { translate: -4vw 45vh; }
+  .entrance-snow i { translate: 3vw 42vh; }
+}
+

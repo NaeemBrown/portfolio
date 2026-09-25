@@ -1,0 +1,1197 @@
+/* ======================================================================
+   The living world's styles. The behaviour is in living.js; the plan and
+   what is built are in HANDOFF-living-world.md. Loaded after styles.css.
+   ====================================================================== */
+
+/* ------------------------------------------------- where they've been */
+
+/* A stop they have opened before keeps a dot in its ring on the route; the
+   stop he is at stays filled solid (styles.css). */
+.poi-nav button.is-visited:not([aria-current="location"])::after {
+  background: radial-gradient(circle, currentColor 0 1.6px, var(--paper) 2.2px);
+}
+
+/* -------------------------------------------------------- the log's tally */
+
+.camp-seat__tally {
+  fill: none;
+  stroke: rgba(32, 32, 31, 0.62);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------------------------- the typed terminal */
+
+/* Everything on the glass scrolls in here; once they are typing, living.js
+   keeps the last line in view and older ones go off the top. */
+.term-scroll {
+  height: 100%;
+  overflow: hidden;
+}
+
+.term-print p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.term-line--cmd {
+  margin-top: 0.35em !important;
+}
+
+.term-line--err {
+  color: #ffd08a;
+}
+
+/* The prompt they type at: hidden till the terminal is up. */
+.term-line--input {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  margin-top: 0.35em !important;
+  opacity: 0;
+}
+
+.term-line--input .term-prompt {
+  flex: none;
+  cursor: text;
+}
+
+.term-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  color: inherit;
+  background: none;
+  font: inherit;
+  line-height: inherit;
+  text-shadow: inherit;
+  caret-color: var(--phosphor);
+}
+
+/* `clear`: only what they run from here on. */
+.term-screen.is-cleared [data-boot],
+.term-screen.is-cleared .term-line--list,
+.term-screen.is-cleared .term-list,
+.term-screen.is-cleared .term-line--hint,
+.term-screen.is-cleared .term-line--show,
+.term-screen.is-cleared .term-out {
+  display: none;
+}
+
+/* `rm -rf /`: every line drops off the bottom of the glass, a little after
+   the one above it, then the screen goes dark. */
+.term-screen.is-crashing .term-scroll > * {
+  animation: term-fall 0.95s cubic-bezier(0.55, 0, 1, 0.45) calc(var(--i, 0) * 45ms) forwards;
+}
+
+@keyframes term-fall {
+  to {
+    transform: translateY(14em) rotate(var(--r, 6deg));
+    opacity: 0;
+  }
+}
+
+.term-screen.is-dead .term-scroll {
+  visibility: hidden;
+}
+
+/* The thump on the desk shakes the console and the screen with it. The
+   `translate` property adds to the transform script.js sets each frame. */
+.term-panel.is-thumped,
+.term-cam.is-thumped,
+.term-figure.is-thumped {
+  animation: term-thump 0.32s ease-out;
+}
+
+@keyframes term-thump {
+  20% { translate: -5px 4px; }
+  45% { translate: 4px -2px; }
+  70% { translate: -2px 1px; }
+  100% { translate: 0 0; }
+}
+
+/* One cursor at a time: while they are at the prompt, his command's block
+   cursor goes. */
+.term-screen:has(.term-input:focus) .term-line--show .term-cursor {
+  visibility: hidden;
+}
+
+/* ------------------------------------------------------------ time of day
+   living.js draws the sky hour by hour (SKY_KEYS there has how strong and
+   what colour it is through the day), setting these on each layer, and
+   sets .scene[data-daypart] and html[data-sky] for what goes by those. The
+   wash multiplies over the world and him; the lights and the stars screen
+   over that. The sun is behind the world; the mist is in front of it, and
+   behind him. */
+
+.scene {
+  --wash: 0;
+  --lights: 0;
+  --stars: 0;
+  --mist: 0;
+  --wash-top: #2b3550;
+  --wash-mid: #56607a;
+  --wash-low: #8a8577;
+}
+
+.sky-wash {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  background: linear-gradient(to bottom, var(--wash-top), var(--wash-mid) 62%, var(--wash-low));
+  mix-blend-mode: multiply;
+  opacity: var(--wash);
+  pointer-events: none;
+}
+
+/* The sun: a box as tall as the sky down to the floor line (living.js keeps
+   it so), cutting off the disc as it rises and sets. living.js moves the
+   disc along its path and sets --sun-low, 1 at the floor, 0 overhead:
+   bigger and redder low down. It fades with the world at the bench and
+   the terminal. */
+.sky-sun {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+.sky-sun.is-down {
+  visibility: hidden;
+}
+
+.sky-sun__disc {
+  --sun-size: calc(var(--fig-h) * 0.9); /* the glow; the disc is 30% of it */
+  --sun-core: color-mix(in srgb, #ee7b45 calc(var(--sun-low, 0) * 100%), #f7d27e);
+  --sun-glow: color-mix(in srgb, rgb(255 150 90 / 0.5) calc(var(--sun-low, 0) * 100%), rgb(255 222 150 / 0.45));
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--sun-size);
+  aspect-ratio: 1;
+  margin: calc(var(--sun-size) / -2) 0 0 calc(var(--sun-size) / -2);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--sun-core) 0 29%, var(--sun-glow) 31%, transparent);
+  scale: calc(1 + 0.2 * var(--sun-low, 0));
+  will-change: translate;
+}
+
+/* Mist lying along the floor, in front of the world and behind him: a
+   band of soft banks, living.js slides along with the world (its pattern
+   repeats every 1200px, MIST_TILE there) and parts round him (--gap-x).
+   Its floor line is 75% of the way down. */
+.sky-mist {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: calc(var(--fig-h) * 0.62);
+  overflow: hidden;
+  opacity: calc(var(--mist) * var(--project-world-opacity, 1));
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse calc(var(--fig-h) * 0.42) 95% at var(--gap-x, -999px) 75%, transparent 30%, #000 100%);
+  mask-image: radial-gradient(ellipse calc(var(--fig-h) * 0.42) 95% at var(--gap-x, -999px) 75%, transparent 30%, #000 100%);
+}
+
+.sky-mist__band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% + 1200px);
+  background-image:
+    radial-gradient(ellipse 180px 34% at 200px 72%, rgb(255 253 248 / 0.9), transparent),
+    radial-gradient(ellipse 170px 30% at 520px 78%, rgb(255 253 248 / 0.8), transparent),
+    radial-gradient(ellipse 150px 38% at 790px 68%, rgb(255 253 248 / 0.85), transparent),
+    radial-gradient(ellipse 190px 32% at 1010px 76%, rgb(255 253 248 / 0.9), transparent),
+    linear-gradient(to top, transparent, rgb(255 253 248 / 0.6) 25%, rgb(255 253 248 / 0.3) 55%, transparent);
+  background-size: 1200px 100%;
+  will-change: transform;
+}
+
+/* The lights: the same box as .world, moved with it by living.js. */
+.world-lights {
+  position: absolute;
+  z-index: 3;
+  top: var(--floor-level);
+  left: 0;
+  width: 10400px;
+  height: 96px;
+  mix-blend-mode: screen;
+  opacity: calc(var(--lights) * var(--project-world-opacity, 1));
+  pointer-events: none;
+  will-change: transform;
+}
+
+.glow {
+  position: absolute;
+  width: calc(var(--fig-h) * var(--size));
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.15s ease;
+}
+
+.glow--lamp {
+  background: radial-gradient(closest-side, rgba(255, 214, 150, 0.8), rgba(255, 190, 110, 0.24) 45%, transparent);
+}
+
+.glow--pool {
+  aspect-ratio: 3 / 1;
+  background: radial-gradient(closest-side, rgba(255, 205, 140, 0.42), transparent);
+}
+
+.glow--fire {
+  background: radial-gradient(closest-side, rgba(255, 150, 60, 0.55), rgba(255, 120, 40, 0.18) 50%, transparent);
+  animation: glow-flicker 2.2s ease-in-out infinite alternate;
+}
+
+.glow--shop {
+  background: radial-gradient(closest-side, rgba(255, 226, 170, 0.42), transparent);
+}
+
+.glow--screen {
+  background: radial-gradient(closest-side, rgba(130, 240, 170, 0.34), transparent);
+}
+
+.glow--firefly {
+  background: radial-gradient(closest-side, #fff6b0, rgba(255, 236, 120, 0.55) 50%, transparent);
+  opacity: 0;
+  animation: firefly var(--d) ease-in-out var(--delay) infinite;
+}
+
+.scene:not([data-daypart="night"]):not([data-daypart="dusk"]) .glow--firefly {
+  display: none;
+}
+
+/* A light switched off, or flickering: see the incidents. */
+.glow.is-off {
+  opacity: 0;
+}
+
+/* A lamp switched off for the day (living.js, SWITCHED): its glow, and the
+   little one in its scenery. Switched on, it catches with a flicker, by
+   visibility, so each light keeps its own brightness; not while it's
+   broken, which has its own. */
+.glow.is-dark,
+.s-fixture.is-dark .s-glow {
+  opacity: 0;
+}
+
+.glow.is-lighting:not(.is-off):not(.is-flickering),
+.s-fixture.is-lighting:not(.is-faulty):not(.is-out) .s-glow {
+  animation: switch-on 0.6s steps(1);
+}
+
+@keyframes switch-on {
+  0% { visibility: hidden; }
+  14% { visibility: visible; }
+  24% { visibility: hidden; }
+  38% { visibility: visible; }
+  48% { visibility: hidden; }
+  60%, 100% { visibility: visible; }
+}
+
+.glow.is-flickering {
+  animation: lamp-flicker 0.9s steps(1) infinite;
+}
+
+@keyframes glow-flicker {
+  from { opacity: 0.85; }
+  to { opacity: 1; }
+}
+
+@keyframes firefly {
+  0%, 100% { opacity: 0; translate: 0 0; }
+  30% { opacity: 1; }
+  50% { opacity: 0.25; translate: var(--dx) var(--dy); }
+  70% { opacity: 0.9; }
+}
+
+/* The sky at night: a band across the top, above the wash (so the stars
+   stay bright) and below the speech bubble and panels. */
+.sky-stars {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 22%;
+  mix-blend-mode: screen;
+  opacity: var(--stars);
+  pointer-events: none;
+}
+
+.sky-stars i {
+  position: absolute;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: #fff;
+  animation: twinkle var(--d) ease-in-out var(--delay) infinite alternate;
+}
+
+@keyframes twinkle {
+  from { opacity: 0.25; }
+  to { opacity: 1; }
+}
+
+/* Crossing the night, moved by living.js (MOON_SIZE there is its width). */
+.moon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: inset -8px -2px 0 0 #fff4d6;
+  filter: drop-shadow(0 0 6px rgba(255, 244, 214, 0.45));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow--fire,
+  .sky-stars i {
+    animation: none;
+  }
+
+  .glow--firefly {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  .glow.is-lighting,
+  .s-fixture.is-lighting .s-glow {
+    animation: none !important;
+  }
+}
+
+/* The navbar is outside the scene, so living.js says on the page when the
+   sky behind it is dark enough for its words to go pale (late dusk on). */
+html[data-sky="dark"] .poi-nav button {
+  color: #d8dae6;
+}
+
+html[data-sky="dark"] .poi-nav button:hover,
+html[data-sky="dark"] .poi-nav button:focus-visible,
+html[data-sky="dark"] .poi-nav button[aria-current="location"] {
+  color: #fff;
+}
+
+html[data-sky="dark"] .poi-nav::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* The time picker, top left of the navbar, in the sound button's clothes:
+   the part of the day showing is pressed and named, the others are just
+   their icons. A dot marks the part it really is for the visitor. It waits
+   with the sound button, unseen, until he sends that up in the opening. */
+.time-picker {
+  position: relative;
+  display: inline-flex;
+  grid-row: 1;
+  grid-column: 1;
+  align-items: center;
+  justify-self: start;
+  gap: 2px;
+  padding: 2.5px;
+  border: 1.5px solid rgba(32, 32, 31, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  transition: opacity 0.5s ease, visibility 0.5s;
+}
+
+.navbar:has(.sound-toggle.is-waiting) .time-picker {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.time-picker button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted-ink);
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.time-picker button:hover {
+  color: var(--ink);
+  background: rgba(32, 32, 31, 0.08);
+}
+
+.time-picker button[aria-pressed="true"] {
+  padding-right: 11px;
+  color: #fff;
+  background: var(--ink);
+}
+
+.time-picker button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.time-picker svg {
+  flex: none;
+}
+
+.time-picker__label {
+  display: none;
+}
+
+.time-picker button[aria-pressed="true"] .time-picker__label {
+  display: inline;
+}
+
+/* Under the icon, which sits 7px in from the button's left. */
+.time-picker button.is-now::after {
+  position: absolute;
+  bottom: 1.5px;
+  left: 15px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+/* Any hour: a slider in a pill of its own just under the picker, shown on
+   hover or focus (lingering a moment as the pointer leaves), and always on
+   touch screens. Its track is the sky through the day, midnight at both
+   ends; its clock says "now" while the world goes by theirs. */
+.time-picker__scrub {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -1.5px;
+  right: -1.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border: 1.5px solid rgba(32, 32, 31, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 -4px;
+  transition: opacity 0.2s ease 0.4s, translate 0.2s ease 0.4s, visibility 0s linear 0.6s;
+}
+
+/* A bridge over the gap, so the pointer can get down to it. */
+.time-picker__scrub::before {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 8px;
+  content: "";
+}
+
+.time-picker:hover .time-picker__scrub,
+.time-picker:focus-within .time-picker__scrub {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition-delay: 0s;
+}
+
+@media (hover: none) {
+  .time-picker__scrub {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+  }
+}
+
+.time-picker__hour {
+  --sky: linear-gradient(to right, #2c3659, #2c3659 18%, #d2a9a0 22%, #f6d19c 26%, #f4e6c6 36%, #f4e6c6 62%, #e6a878 74%, #9c7489 80%, #474870 86%, #2c3659 92%, #2c3659);
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.time-picker__hour::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sky);
+  box-shadow: inset 0 0 0 1px rgba(32, 32, 31, 0.18);
+}
+
+.time-picker__hour::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sky);
+  box-shadow: inset 0 0 0 1px rgba(32, 32, 31, 0.18);
+}
+
+.time-picker__hour::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px rgba(32, 32, 31, 0.35);
+  appearance: none;
+}
+
+.time-picker__hour::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px rgba(32, 32, 31, 0.35);
+}
+
+.time-picker__hour:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+.time-picker__clock {
+  min-width: 5ch;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+/* Room to either side of the destinations when it gets tight. */
+.navbar {
+  column-gap: 16px;
+}
+
+/* Narrower screens: icons only. */
+@media (max-width: 1000px) {
+  .time-picker button[aria-pressed="true"] {
+    padding-right: 7px;
+  }
+
+  .time-picker button[aria-pressed="true"] .time-picker__label {
+    display: none;
+  }
+}
+
+/* Phones at a stop, where the Continue button needs the room: folded down
+   to the part showing, which moves the time on. No slider on phones: the
+   route is right under the picker. */
+@media (max-width: 760px) {
+  .time-picker__scrub {
+    display: none;
+  }
+
+  .navbar:has(.map-button:not([hidden])) .time-picker button:not([aria-pressed="true"]) {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------- idling about */
+
+/* His phone, in his near hand (index.html, .prop-phone). */
+.prop-phone {
+  transition: opacity 160ms ease;
+}
+
+.prop-phone__body {
+  fill: #2b2a28;
+  stroke: var(--ink);
+  stroke-width: 0.9;
+}
+
+.prop-phone__screen {
+  fill: #bfe6f5;
+  stroke: none;
+}
+
+.prop-phone.is-buzzing {
+  animation: phone-buzz 0.09s linear infinite;
+}
+
+@keyframes phone-buzz {
+  0%, 100% { translate: 0 0; }
+  25% { translate: 0.9px 0; }
+  75% { translate: -0.9px 0; }
+}
+
+/* A pebble he has scuffed along the floor. */
+.world-pebble {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  width: calc(var(--fig-h) * 0.026);
+  aspect-ratio: 1;
+  border: 1px solid var(--muted-ink);
+  border-radius: 50%;
+  background: #e4dfd5;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- on the run
+   His props for the run (index.html, in the figure; living.js moves them),
+   and what he leaves behind in the world. The figure draws with a 4px
+   stroke and no fill, so each sets its own. */
+
+.prop-watch__band {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.prop-watch__face {
+  fill: #f6c35c;
+  stroke: none;
+}
+
+.prop-readout__tag {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.4px;
+}
+
+.prop-readout__text {
+  fill: var(--ink);
+  stroke: none;
+  font: 700 10.5px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+/* Turned about the hand holding it (living.js keeps it upright). */
+.prop-mug {
+  transform-origin: 70px 142px;
+}
+
+.prop-mug__body {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 2.2px;
+}
+
+.prop-mug__handle {
+  stroke-width: 2.2px;
+}
+
+.prop-mug__coffee {
+  stroke: #7a4a22;
+  stroke-width: 2px;
+}
+
+.prop-mug__steam path {
+  stroke-width: 1.4px;
+  opacity: 0;
+  animation: mug-steam 1.5s ease-out infinite;
+}
+
+.prop-mug__steam path:nth-child(2) { animation-delay: -0.5s; }
+.prop-mug__steam path:nth-child(3) { animation-delay: -1s; }
+
+/* Rising, and drifting back behind him (the figure is mirrored to face
+   left, so back is always -x). */
+@keyframes mug-steam {
+  0% { opacity: 0; translate: 0 2px; }
+  30% { opacity: 0.6; }
+  100% { opacity: 0; translate: -9px -12px; }
+}
+
+.prop-drip {
+  fill: #7a4a22;
+  stroke: none;
+}
+
+.prop-headband__band {
+  stroke: #d4502a;
+  stroke-width: 5px;
+}
+
+.prop-headband__tails {
+  stroke: #d4502a;
+  stroke-width: 3.4px;
+}
+
+/* The ninja run's speed lines, quicker. */
+.speed-lines.is-ninja i {
+  animation-duration: 220ms;
+}
+
+/* A drop of his coffee landing. */
+.world-splash {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.world-splash i {
+  position: absolute;
+  bottom: 0;
+  left: -1.5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #7a4a22;
+  animation: splash 0.6s ease-out forwards;
+}
+
+@keyframes splash {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: var(--dx) var(--dy); }
+}
+
+/* A post he slapped going past: it rocks on its foot (--tap: which way he
+   was running). A lamp turns about its post's foot, which living.js sets;
+   a fingerpost's set is lifted into place by translateY(-100%), so its
+   foot is the top of its box as laid out. */
+.s-fixture.is-tapped {
+  animation: post-rock 0.9s ease-out;
+}
+
+.set--sign.is-tapped {
+  transform-origin: 50% 0;
+  animation: post-rock 0.9s ease-out;
+}
+
+@keyframes post-rock {
+  0% { rotate: 0deg; }
+  14% { rotate: calc(var(--tap, 1) * 4deg); }
+  34% { rotate: calc(var(--tap, 1) * -2.6deg); }
+  54% { rotate: calc(var(--tap, 1) * 1.4deg); }
+  74% { rotate: calc(var(--tap, 1) * -0.6deg); }
+  100% { rotate: 0deg; }
+}
+
+/* The bug after him: two sets of legs taking turns, scuttling. Flipped on
+   its back, they wave more slowly. */
+.world-bug {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  width: calc(var(--fig-h) * 0.12);
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+
+.world-bug svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.world-bug .bug__body {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.world-bug .bug__legs,
+.world-bug .bug__feelers {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.world-bug .bug__legs--a { animation: bug-legs 0.14s steps(1) infinite; }
+.world-bug .bug__legs--b { animation: bug-legs 0.14s steps(1) -0.07s infinite; }
+.world-bug.is-flipped .bug__legs { animation-duration: 0.36s; }
+.world-bug.is-flipped .bug__legs--b { animation-delay: -0.18s; }
+.world-bug.is-gone { opacity: 0; }
+
+@keyframes bug-legs {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* -------------------------------------------------------------- incidents
+   Things in the world that break and that he fixes (living.js). */
+
+/* Sparks off a failing light, shown only while it fails. */
+.s-sparks {
+  opacity: 0;
+  stroke: var(--amber);
+  stroke-width: 1.6;
+}
+
+.s-fixture.is-faulty .s-sparks {
+  animation: sparks 0.5s steps(1) infinite;
+}
+
+.s-fixture.is-faulty .s-glow {
+  animation: lamp-flicker 0.9s steps(1) infinite;
+}
+
+.s-fixture.is-out .s-glow {
+  opacity: 0;
+}
+
+.s-fixture.is-out .s-amber {
+  fill: #a39e94;
+}
+
+@keyframes sparks {
+  0% { opacity: 1; }
+  30% { opacity: 0; }
+  60% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* Flicker by visibility, so each light keeps its own brightness. */
+@keyframes lamp-flicker {
+  0% { visibility: visible; }
+  15% { visibility: hidden; }
+  25% { visibility: visible; }
+  45% { visibility: hidden; }
+  55% { visibility: visible; }
+  70% { visibility: hidden; }
+  90% { visibility: visible; }
+}
+
+/* A signpost arm, turning about where it meets the post (script.js,
+   signpost, sets which end). Working loose it drops with a bounce; pushed
+   back it snaps up past level and settles. */
+.s-arm {
+  transform-box: fill-box;
+  transition: transform 0.45s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.s-arm.is-loose {
+  transition: transform 1s cubic-bezier(0.5, 0, 0.3, 1.3);
+}
+
+/* The failing server: its light red and fast, the board gone amber. */
+.s-led--watch.is-fault {
+  fill: #e0564a;
+  animation: led 0.35s steps(1) infinite;
+}
+
+.set--ops.is-degraded .s-graph,
+.set--ops.is-degraded [data-fixture="readout"] text {
+  stroke: #f0b64a;
+  fill: #f0b64a;
+}
+
+.set--ops.is-degraded .s-graph {
+  fill: none;
+}
+
+.glow.is-alarm {
+  background: radial-gradient(closest-side, rgba(255, 110, 80, 0.42), transparent);
+}
+
+.s-readout--fixed {
+  fill: #7fd08f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-arm,
+  .s-arm.is-loose {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ the bird
+   Placed and flipped by living.js; drawn in the figure's ink. */
+.bird {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  left: 0;
+  width: calc(var(--fig-h) * 0.16);
+  overflow: visible;
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+.bird * {
+  vector-effect: non-scaling-stroke;
+}
+
+.bird__beak {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.bird__eye {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.bird__wings {
+  fill: none;
+}
+
+.bird__flying,
+.bird.is-flying .bird__perched,
+.bird.is-away {
+  display: none;
+}
+
+.bird.is-flying .bird__flying {
+  display: inline;
+}
+
+.bird.is-flying .bird__wings--up {
+  animation: flap-up 0.16s steps(1) infinite;
+}
+
+.bird.is-flying .bird__wings--down {
+  animation: flap-down 0.16s steps(1) infinite;
+}
+
+/* Wings held up to land. */
+.bird.is-landing .bird__wings--up {
+  animation: none;
+}
+
+.bird.is-landing .bird__wings--down {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes flap-up {
+  50% { opacity: 0; }
+}
+
+@keyframes flap-down {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.bird__head {
+  transform-box: fill-box;
+  transform-origin: 20% 90%;
+  transition: transform 0.12s ease;
+}
+
+.bird.is-pecking .bird__head {
+  transform: rotate(38deg) translate(1px, 1.5px);
+}
+
+/* -------------------------------------------------------------------- wind
+   living.js adds .is-gusting to .world for a gust, with --gust-dir 1 for
+   one blowing to the right and -1 to the left. */
+
+/* The grass, on layers of its own (living.js, separateGrass), bends from
+   the floor: a shear, so every blade leans by its own height. */
+.set--grass .s-grass {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.world.is-gusting .set--grass .s-grass {
+  animation: gust-grass 2.6s ease-in-out;
+}
+
+@keyframes gust-grass {
+  0%, 100% { transform: skewX(0deg); }
+  25% { transform: skewX(calc(var(--gust-dir, 1) * -24deg)); }
+  45% { transform: skewX(calc(var(--gust-dir, 1) * -12deg)); }
+  65% { transform: skewX(calc(var(--gust-dir, 1) * -20deg)); }
+  85% { transform: skewX(calc(var(--gust-dir, 1) * -5deg)); }
+}
+
+/* Trees and bushes lean a little from their foot. */
+.world.is-gusting .set .s-tree {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: gust-tree 2.6s ease-in-out;
+}
+
+@keyframes gust-tree {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(calc(var(--gust-dir, 1) * 1.6deg)); }
+  55% { transform: rotate(calc(var(--gust-dir, 1) * 0.7deg)); }
+  75% { transform: rotate(calc(var(--gust-dir, 1) * 1.2deg)); }
+}
+
+/* The fire's smoke and embers blow over, and drift back after. */
+.campfire__smoke,
+.campfire__ember {
+  transition: translate 1.8s ease-in-out;
+}
+
+.world.is-gusting .campfire__smoke,
+.world.is-gusting .campfire__ember {
+  translate: calc(var(--gust-dir, 1) * var(--fig-h) * 0.35) 0;
+  transition-duration: 1.1s;
+}
+
+/* A leaf on the wind (living.js, blowLeaves). */
+.world-leaf {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  width: calc(var(--fig-h) * 0.075);
+  aspect-ratio: 2 / 1;
+  border: 1px solid var(--muted-ink);
+  border-radius: 0 100% 0 100%;
+  background: #cdb57a;
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world.is-gusting .set--grass .s-grass,
+  .world.is-gusting .set .s-tree {
+    animation: none;
+  }
+
+  .world-leaf {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------ the terminal's sticky note
+   Commands to try, on a yellow note. On a wide screen living.js lays it on
+   the monitor's bezel through the terminal's camera (like the screen on the
+   glass): it sets the size, the font size, and a matrix3d transform, so
+   everything inside is in em. On a phone it sits on the desk below the
+   monitor instead (.is-on-desk). Its commands are buttons: a click types
+   one in (living.js, typeFromNote). */
+.term-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 0.6em 0.5em 0.5em 0.75em;
+  border-radius: 0.1em 0.1em 0.45em 0.1em;
+  color: #2b2a28;
+  background: linear-gradient(to bottom, #f8e889, #f1d962);
+  box-shadow: 0 0.25em 0.6em rgba(0, 0, 0, 0.35), inset 0 -0.8em 1em -0.8em rgba(120, 90, 20, 0.35);
+  font-family: var(--font-display);
+  line-height: 1.32;
+  white-space: nowrap;
+  transform-origin: 0 0;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.35s ease;
+}
+
+/* A strip of tape holding it on. */
+.term-note::before {
+  content: "";
+  position: absolute;
+  top: -0.45em;
+  left: 50%;
+  width: 3.4em;
+  height: 1em;
+  background: rgba(255, 255, 255, 0.55);
+  transform: translateX(-50%) rotate(-3deg);
+}
+
+.term-note.is-shown {
+  opacity: 1;
+}
+
+.term-panel.is-folding .term-note {
+  opacity: 0;
+}
+
+/* The panels set their own paragraph type; the note keeps its hand. */
+.term-note p,
+.term-note ul {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+
+.term-note ul {
+  margin-top: 0.15em;
+  padding: 0;
+  list-style: none;
+}
+
+.term-note__title {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.term-note__ps {
+  margin-top: 0.2em !important;
+  opacity: 0.7;
+}
+
+.term-note button {
+  padding: 0 0.25em;
+  border: 0;
+  border-radius: 0.15em;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.term-note button::before {
+  content: "\203A\00a0";
+  opacity: 0.5;
+}
+
+.term-note button:hover,
+.term-note button:focus-visible {
+  outline: none;
+  background: rgba(43, 42, 40, 0.14);
+}
+
+/* On a phone: on the desk at the bottom left, below the glass, with the
+   essentials. */
+.term-note.is-on-desk {
+  top: auto;
+  bottom: 2svh;
+  left: 5vw;
+  font-size: clamp(11px, 1.6svh, 13px);
+  transform: rotate(-4deg);
+}
+
+.term-note.is-on-desk li:nth-child(2),
+.term-note.is-on-desk li:nth-child(3),
+.term-note.is-on-desk li:nth-child(7) {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-note {
+    transition: none;
+  }
+}
+
+/* His bubble at the terminal goes over the screen and him (living.js,
+   updateTermNudge, puts it over his head as the camera sees it). */
+.intro-speech.is-at-terminal {
+  z-index: 6;
+}
