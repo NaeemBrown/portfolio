@@ -78,6 +78,7 @@ In `script.js`'s `frame()`, in order:
 | `buildCamp` | lantern wrapped as `data-fixture="lantern"`, with `s-sparks` |
 | `buildOps` | readout wrapped as `data-fixture="readout"`; new `data-fixture="fixed-count"` text; one LED classed `s-led--watch` (`light()` takes a class) |
 | `buildStart` | each street lamp wrapped as `data-fixture="lamp-left"` / `"lamp-right"`, with `s-shade` and `s-sparks` |
+| `buildShop` | the pegboard hammer wrapped as `data-fixture="hammer"`, classed `s-hammer` so it can turn about its peg |
 | `signpost(anchor, arms, name)` | each arm a `.s-arm` group turning about the post; the svg gets `data-sign=name` (`start`, `camp-bench`, `bench-line`) |
 | `intro` initialiser | `active: !reducedMotion.matches && !returning` |
 | reduced-motion start block | `if (reducedMotion.matches \|\| returning)`: a return visit starts with the N whole, the bag down and the tools docked |
@@ -149,6 +150,7 @@ Section "incidents" in `living.js`; styles under "incidents" in `living.css`.
 | `lamp-right` / `lamp-left` | street lamps by the name (`buildStart`) | sparks, flicker, then out (the scenery glow and its `.world-lights` glows) | `FIX_THUMP`: two thumps on the post; the first flickers it, the second puts it right |
 | `lantern` | camp lantern (`buildCamp`) | same as the lamps | `FIX_TAP`: two taps on the glass |
 | `sign` | top arm (Projects) of the camp-to-bench post | swings down to 35° with a creak | `FIX_PUSH`: pushed back up, tapped home |
+| `hammer` | hammer on the workshop pegboard (`buildShop`) | works off its peg with a clatter and swings down to 40°, hanging by its head | `FIX_LIFT`: taken by the handle, swung back up level and pressed onto the peg |
 | `rack` | middle rack's watched LED (`buildOps`) | LED red, board amber and `DEGRADED`, red glow, alarm beeps | `FIX_RESEAT`: cable pulled and pushed home |
 
 - **Each fixture** has:
@@ -159,7 +161,8 @@ Section "incidents" in `living.js`; styles under "incidents" in `living.css`.
   - `fail()`, `out()`, `restore()`
   - `fix: { duration, frames, beats }`
 - **The log:** each fix goes to `memory.data.incidents` as `{ id, at, secs }` via `logIncident()`. `sudo` in the terminal logs `{ id: 'sudo', secs: null }`. The ops board's `FIXED n` comes from `memory.data.fixed`.
-- **Sounds** are in `noises`: `buzz`, `fizz`, `down`, `up`, `creak`, `clunk`, `alarm`, `thump`. All are built from `sfx.tone` and `sfx.hiss`.
+- **Sounds** are in `noises`: `buzz`, `fizz`, `down`, `up`, `creak`, `clunk`, `clatter`, `alarm`, `thump`. All are built from `sfx.tone` and `sfx.hiss`.
+- **The hammer's geometry** (if you move anything on the pegboard): the peg is at `(124, 232)` in `buildShop`'s units and the handle hangs 82 units below it, so `.s-hammer`'s `transform-origin` is `45% 14.6%` of its own box. Loose, it turns 40° into the clear patch of board between the spirit level and the saw. He stands 51 units to its left, which is in front of his own bench, and `FIX_LIFT` takes the handle where it then lies. Only `sides: [-1]` works, because the swing is not symmetric.
 
 ### Adding a fixture
 
@@ -379,7 +382,8 @@ camera/world fade as their destination. `test_artifacts.js` exercises all 20.
   - **Wide screens:** `livingTermNote(camera)` lays it on the monitor's bezel at the top left through the terminal's camera, as `placeTermScreen` lays the screen on the glass. It hangs off the bezel's edge and covers the little yellow note drawn there.
     - The corners are in `noteCorners()` (bezel face x 62; z from `MZ - 153` to the glass edge at `MZ - 104`; y 247 to 307, a little askew).
     - It's sized once per scene size for where the camera ends up, with font size = height / 13.6. So to change what's on it, keep it to about nine lines, or change the corners.
-  - **Phones** (`narrowScreen`): the monitor fills the width, so it sits on the desk at the bottom left (`.is-on-desk`) with four commands.
+    - **It shrinks to fit.** `termShot` fits the glass to whichever of the width and the height runs out first, so on a screen that is wide for its height the monitor sits far enough left that what hangs off its corner would be cut. `noteFit`/`fitNote` scale the quad towards the note's top right corner — the one at the glass's edge, under the tape — so it stays whole and never creeps over the terminal's text. Above about 1500 px wide nothing is scaled at all.
+  - **Phones** (`narrowScreen`), **and any screen where the bezel note would come out under `NOTE_LEAST` px tall** (4:3 and portrait-tablet shapes): it sits on the desk at the bottom left (`.is-on-desk`) with four commands, clear of the walking keys.
 - **Clicking a command** on it types it in at the prompt a letter at a time and runs it (`typeFromNote`). A real key pressed meanwhile stops the auto-typing, so it never types over the visitor.
 - **His line:** about 1.4 s after the terminal is up (`TERM_NUDGE_AFTER`), if they haven't typed a command yet this visit, he says **"Hmm, developer might want me to enter these commands."** (`TERM_NUDGE`).
   - `updateTermNudge()` (called from `livingView`) keeps the bubble over his 3D head: it reads the head circle `termRig.parts.head` and lifts the bubble above the terminal (`.intro-speech.is-at-terminal`, z-index 6).
@@ -390,6 +394,8 @@ camera/world fade as their destination. `test_artifacts.js` exercises all 20.
 ## Testing
 
 Everything runs from Node 18+ with the Edge at `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, headless, driven over CDP.
+
+> **`scratch/` is in `.gitignore`**, so none of the scripts below are in the repository: a fresh clone has no tests. They live on the machine this was built on. The hammer fixture and the sticky note's fitting (both 25 Sep) were checked with a rebuilt throwaway harness of the same shape — headless Chromium over CDP, a static server on the working copy — not with the scripts below, so `test_incidents.js` and `test_terminal.js` have not been extended to cover them.
 
 | Command | Checks |
 |---|---|
@@ -429,9 +435,8 @@ Screenshots land in `scratch/living/shots/`. There are also `shot_acts.js`, `sho
 
 ## Not done, and open questions
 
-- **GitHub** for the terminal's `CONTACT` (optional; email and LinkedIn are in).
-- **The pegboard hammer** incident from the plan isn't built. It's optional; add it through `FIXTURES`.
-- **His spoken lines are drafts:** `greetingLine`, the fixtures' `lines`, `dozeAct`, `updateLateNight`, `updateTour`, `finishIncident`.
+- **GitHub** for the terminal's `CONTACT` (optional; email and LinkedIn are in). The account this repository lives on is `github.com/NaeemBrown`, but that profile's display name is something else, so it wasn't filled in: say which profile should be linked and it's a one-line change. Worth checking the email in `CONTACT` too: it differs by one digit from the address this repository is committed from, so one of the two is a typo.
+- **His spoken lines are drafts:** `greetingLine`, the fixtures' `lines` (the hammer's among them), `dozeAct`, `updateLateNight`, `updateTour`, `finishIncident`.
 - **The night wash strength** wants a design look (the night keys in `SKY_KEYS`, `living.js`).
-- **The sticky note's markup is missing.** `.term-note` is no longer in `index.html` (it went in an edit made outside this work, at 20:28 on 24 Sep). The code copes without it, but `test_terminal.js` stops at its first check until the note is put back or the test is changed.
+- **The Projects artifact** (the clockwork prototype, `artifacts.js`) is drawn right where he stands to fix the hammer, so his reaching arm crosses it. It reads, but a designer may want one of the two moved a little.
 - **Unchanged by this work:** the About, Projects and experience copy is still placeholder text.

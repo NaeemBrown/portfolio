@@ -4540,8 +4540,13 @@ function buildShop() {
     p.rect('s-paper', 8, 234, 32, 262, 5); // the saw
     p.poly('s-paper', [[32, 258], [98, 252], [98, 244], [32, 236]]);
     p.line('s-thin', [[40, 237], [96, 244]]);
-    p.line('s-edge', [[124, 150], [124, 232]]); // the hammer
+    // The hammer, hanging head up. living: a fixture, which slips on its
+    // peg and is lifted back onto it (living.js, the incidents). It turns
+    // about the peg through its head, at (124, 232).
+    p.open('class="s-fixture s-hammer" data-fixture="hammer"');
+    p.line('s-edge', [[124, 150], [124, 232]]);
     p.poly('s-paper', [[106, 232], [140, 232], [146, 240], [140, 246], [106, 246]]);
+    p.close();
     p.line('s-edge', [[160, 162], [178, 236]]); // the spanner
     p.circle('s-paper', 180, 244, 9);
     p.rect('s-dark', 196, 212, 206, 240, 2); // screwdrivers

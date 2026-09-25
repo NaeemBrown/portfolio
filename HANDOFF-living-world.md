@@ -32,7 +32,8 @@
   - **As built:** without a mouse, `look` becomes a glance back over the shoulder.
   - **Fixed along the way:** `postured()` in `script.js` now picks the shoulder angle nearest the starting one, so arms aimed with `hand:` targets never swing round behind the back.
 - [x] 1. Incidents. Test: `node scratch/living/test_incidents.js` (38/38). Screenshots: `incident_<id>_{broken,fixing}.png`
-  - Built: `lamp-right`, `lamp-left`, `lantern`, `sign` (the Projects arm on the camp-to-bench post) and `rack`. **Not built:** the pegboard hammer. It's optional; the same `FIXTURES` pattern extends to it.
+  - Built: `lamp-right`, `lamp-left`, `lantern`, `sign` (the Projects arm on the camp-to-bench post), `hammer` (on the workshop pegboard) and `rack`.
+  - **The hammer, as built (25 Sep):** the plan had it drop to the floor to be picked up. It can't: the only clear floor under the pegboard is behind the workbench, which is drawn over the world, and the clear floor beside it is further from the peg than he can reach from one stance. So it works off the peg and swings down by its head instead, and he lifts it back on from where he stands at the bench.
   - **As built:** fixtures are tagged in `script.js` (`buildStart`, `buildCamp`, `buildOps`, `signpost`, which now takes a `name`) and defined in `FIXTURES` in `living.js`. The ops board shows `FIXED n` from memory. Incidents start 20 s after load at the earliest, then 60–120 s apart.
   - **Fixed along the way (important):** anything that sends him somewhere from inside a frame must go through `soon()`. `frame()` measures the distance to the target before `livingPose` runs, so a target set mid-frame counts as already reached and he teleports onto it. `livingFrameStart()`, called beside `leaveStart()` at the top of `frame()`, runs the queue. The greeting's walk to camp and the terminal's `cd` use it too.
 - [x] 2d. Bird. Test: `node scratch/living/test_bird.js` (9/9). Close-up screenshots: `node scratch/living/shot_bird.js`
@@ -48,12 +49,15 @@
   - The site's 13 older `scratch/*.js` tests all pass (`node scratch/living/regress.js`; logs in `scratch/living/shots/regress/`). The runner uses throwaway copies, because the originals launch Edge on the default profile and write PNGs into the project root.
   - End to end: `node scratch/living/test_smoke.js` (10/10). The full opening plays through to the About letter; a phone-sized visit and reduced-motion first and return visits load with no page errors.
 
+**Done since** (25 Sep):
+- The sticky note's markup (`.term-note`) is back in `index.html`, and it now shrinks to fit rather than hanging off the left edge of the screen; where it would come out too small to read (4:3 and portrait-tablet shapes) it goes on the desk as it does on phones. See "The sticky note" in LIVING-WORLD.md.
+- The pegboard hammer is built, as the sixth fixture. It works off its peg and swings down by its head; he stands at his bench, takes the handle and lifts it back on. See the fixtures table in LIVING-WORLD.md.
+
 **Still open** (details at the end of LIVING-WORLD.md):
-- GitHub for the terminal's `CONTACT` (optional).
-- The optional pegboard-hammer incident.
+- GitHub for the terminal's `CONTACT` (optional), and a check of the email address already in it.
 - Approval of the spoken lines.
 - A design look at the night wash.
-- The sticky note's markup (`.term-note`) has gone from `index.html`, in an edit made outside this work; `test_terminal.js` stops at its first check until it's back or the test changes.
+- The Projects artifact sits where he stands to fix the hammer.
 
 Four features for the portfolio's side-scrolling world, in priority order:
 

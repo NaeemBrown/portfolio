@@ -1228,6 +1228,12 @@ const noises = {
     sfx.tap(1.3, at);
     sfx.tone(2400, { type: 'square', vol: 0.02, dur: 0.015, at: at + 0.02 });
   },
+  // A tool slipping about on its board: two knocks and the ring of its head.
+  clatter(at = 0) {
+    sfx.tap(0.9, at);
+    sfx.tap(1.5, at + 0.13);
+    sfx.tone(1900, { type: 'triangle', to: 1480, vol: 0.022, dur: 0.18, at: at + 0.15 });
+  },
   alarm(at = 0) {
     [0, 0.16, 0.32].forEach((gap) => sfx.tone(880, { type: 'square', vol: 0.03, dur: 0.08, at: at + gap }));
   },
@@ -1275,6 +1281,16 @@ const FIX_PUSH = [ // a signpost arm pushed back up level, and tapped home
   { at: 0.76, lean: -5, near: { hand: [115, 54] } },
   { at: 0.84, lean: -4, near: { hand: [111, 48] } },
   { at: 0.9, lean: -5, near: { hand: [115, 54] } },
+  { at: 1 },
+];
+const FIX_LIFT = [ // a hammer taken by the handle, swung back up and pressed on
+  { at: 0 },
+  { at: 0.12 },
+  { at: 0.34, lean: -3, near: { hand: [95, 48] } },
+  { at: 0.58, lean: -6, near: { hand: [121, 51] } },
+  { at: 0.7, lean: -6, near: { hand: [117, 32] } },
+  { at: 0.8, lean: -5, near: { hand: [121, 46] } },
+  { at: 0.9, lean: -4, near: { hand: [112, 66] } },
   { at: 1 },
 ];
 const FIX_RESEAT = [ // a cable in the rack pulled out and pushed home
@@ -1382,6 +1398,39 @@ const FIXTURES = {
         },
         0.76: () => sfx.tap(1.2),
         0.9: () => sfx.tap(1.2),
+      },
+    },
+  },
+  // On the workshop pegboard, over his bench: it works its way off the peg
+  // through its head and swings down by the handle, and he lifts it back
+  // on. He stands at the bench to reach it (script.js, buildShop: the peg
+  // is 124 units along the set from benchX, the handle 82 units below it).
+  hammer: {
+    label: 'the hammer',
+    x: () => fromAnchor(benchX, 124),
+    stand: 51,
+    sides: [-1],
+    breakTime: 1.2,
+    lines: ['That hammer’s off its peg.', 'Hm. Hang on.', 'One second.'],
+    broken: false,
+    el: () => document.querySelector('[data-fixture="hammer"]'),
+    fail() {
+      this.broken = true;
+      this.el()?.classList.add('is-loose');
+      noises.clatter();
+    },
+    out() {},
+    restore() {
+      this.broken = false;
+      this.el()?.classList.remove('is-loose');
+    },
+    fix: {
+      duration: 2.6,
+      frames: FIX_LIFT,
+      beats: {
+        0.34: () => sfx.tap(1.1),
+        0.4: () => FIXTURES.hammer.restore(), // it comes up with his hand
+        0.72: () => noises.clunk(),
       },
     },
   },
@@ -3248,42 +3297,66 @@ const termNote = document.querySelector('.term-note');
 // TERM_MODEL in script.js), a little askew: top left, top right, bottom
 // right, bottom left, as seen from behind him, as GLASS_CORNERS are. It
 // stops at the glass's left edge (z MZ - 104), over the little note drawn
-// there, and hangs about 30 units off the bezel, which the camera leaves
-// room for at any width (the glass takes 64% of it, from 12%).
+// there, and hangs about 30 units off the bezel.
 const noteCorners = () => [
   [61.2, 305, MZ - 153], [61.2, 307, MZ - 104], [61.2, 249, MZ - 102], [61.2, 247, MZ - 151],
 ];
-const noteSize = { key: '', w: 0, h: 0 };
+const noteSize = { key: '', w: 0, h: 0, desk: false };
+const NOTE_EDGE = 10; // px of paper to leave left of it
+const NOTE_LEAST = 150; // px tall; below that it goes on the desk instead
+
+// How much of it fits. The camera fits the glass to whichever of the width
+// and the height runs out first (termShot), so on a screen that is wide for
+// its height the monitor sits far enough left that what hangs off its
+// corner would be cut. Where it would, the note shrinks towards its top
+// right corner - the one at the glass's edge, under the tape - so it stays
+// whole on the bezel and never creeps over what is on the glass.
+function noteFit(points) {
+  const left = Math.min(...points.map((p) => p.x));
+  const span = points[1].x - left; // zero while the camera is edge on to it
+  return left >= NOTE_EDGE || span <= 0 ? 1 : clamp((points[1].x - NOTE_EDGE) / span, 0, 1);
+}
+
+function fitNote(points) {
+  const k = noteFit(points);
+  if (k === 1) return points;
+  const corner = points[1];
+  return points.map((p) => ({ x: corner.x + (p.x - corner.x) * k, y: corner.y + (p.y - corner.y) * k }));
+}
 
 // Lays the note on (script.js, drawTerminal, each frame the console is
 // drawn): sized once for where the camera ends up, so its words are drawn
 // near their own size, then mapped onto its corners wherever the camera is.
+// On a phone, and on any screen with too little paper beside the monitor to
+// read it there, it goes on the desk below instead (living.css, .is-on-desk).
 function livingTermNote(camera) {
   if (!termNote || termPanel.hidden) return;
-  if (narrowScreen.matches) {
-    if (noteSize.key !== 'desk') {
-      noteSize.key = 'desk';
-      termNote.removeAttribute('style');
-      termNote.classList.add('is-on-desk');
-    }
-    return;
-  }
-  const key = `${sceneWidth}x${sceneHeight}`;
+  const key = narrowScreen.matches ? 'phone' : `${sceneWidth}x${sceneHeight}`;
   if (noteSize.key !== key) {
-    termNote.classList.remove('is-on-desk');
-    const shot = termShot();
-    const final = orbitCamera({
-      yaw: TERM_YAW, pitch: TERM_PITCH, invDistance: 1 / TERM_DISTANCE, scale: shot.scale, x: shot.x, y: shot.y, pivot: TERM_PIVOT,
-    });
-    const [a, b, c, d] = noteCorners().map((p) => final.project(p));
-    const w = Math.round((Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - d.x, c.y - d.y)) / 2);
-    const h = Math.round((Math.hypot(d.x - a.x, d.y - a.y) + Math.hypot(c.x - b.x, c.y - b.y)) / 2);
-    Object.assign(noteSize, { key, w, h });
-    termNote.style.width = `${w}px`;
-    termNote.style.height = `${h}px`;
-    termNote.style.fontSize = `${(h / 13.6).toFixed(2)}px`; // its nine lines and a margin
+    noteSize.key = key;
+    noteSize.desk = narrowScreen.matches;
+    if (!noteSize.desk) {
+      const shot = termShot();
+      const final = orbitCamera({
+        yaw: TERM_YAW, pitch: TERM_PITCH, invDistance: 1 / TERM_DISTANCE, scale: shot.scale, x: shot.x, y: shot.y, pivot: TERM_PIVOT,
+      });
+      const points = noteCorners().map((p) => final.project(p));
+      const [a, b, c, d] = points;
+      const w = Math.round((Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - d.x, c.y - d.y)) / 2);
+      const h = Math.round((Math.hypot(d.x - a.x, d.y - a.y) + Math.hypot(c.x - b.x, c.y - b.y)) / 2);
+      noteSize.desk = h * noteFit(points) < NOTE_LEAST;
+      if (!noteSize.desk) {
+        Object.assign(noteSize, { w, h });
+        termNote.style.width = `${w}px`;
+        termNote.style.height = `${h}px`;
+        termNote.style.fontSize = `${(h / 13.6).toFixed(2)}px`; // its nine lines and a margin
+      }
+    }
+    if (noteSize.desk) termNote.removeAttribute('style');
+    termNote.classList.toggle('is-on-desk', noteSize.desk);
   }
-  const [p0, p1, p2, p3] = noteCorners().map((p) => camera.project(p));
+  if (noteSize.desk) return;
+  const [p0, p1, p2, p3] = fitNote(noteCorners().map((p) => camera.project(p)));
   termNote.style.transform = quadMatrix(noteSize.w, noteSize.h, p0, p1, p2, p3);
 }
 const TERM_NUDGE = '<span>I have a feeling i should</span><span>type "help" in the terminal</span>';
@@ -3379,8 +3452,8 @@ window.alive = {
     const p = birdPerches()[i];
     Object.assign(bird, { mode: 'perched', perch: i, x: p.x, y: p.y, flight: null });
   },
-  // Breaks fixture `id` now (lamp-right, lamp-left, lantern, sign, rack),
-  // wherever it is; he deals with it as usual.
+  // Breaks fixture `id` now (lamp-right, lamp-left, lantern, sign, hammer,
+  // rack), wherever it is; he deals with it as usual.
   forceIncident(id) {
     if (!FIXTURES[id] || livingReduced.matches) return false;
     if (current()?.broken) current().restore();
