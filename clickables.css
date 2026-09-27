@@ -1,0 +1,762 @@
+/* ======================================================================
+   Things to click (clickables.js): their click areas, and how each looks
+   when it answers one.
+   ====================================================================== */
+
+/* The click areas: laid in the world over each thing, taking the pointer
+   once the opening is over and the world is in view (.has-clicks). Above
+   the stops' own (.stop-hit, z-index 6), so a thing inside a stop's
+   scenery wins, and the rest still opens the stop. */
+.click-hit {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.scene.has-clicks .click-hit:not(.is-off) {
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (pointer: fine) {
+  html.has-ink-cursor .scene.has-clicks .click-hit:not(.is-off),
+  html.has-ink-cursor .sky-stars.is-wishable i {
+    cursor: pointer !important;
+  }
+}
+
+/* ------------------------------------------------------ the letters */
+
+/* A letter rung: it jumps, settles with a bounce, and glows as it sounds.
+   `translate` and `filter`, so the N's own glitch and glow are left be. */
+.statue__letter.is-struck {
+  animation: letter-ring 0.7s ease-out;
+}
+
+@keyframes letter-ring {
+  0% { translate: 0 0; filter: none; }
+  16% { translate: 0 -12px; filter: drop-shadow(0 0 10px rgba(240, 182, 74, 0.9)); }
+  38% { translate: 0 3px; }
+  58% { translate: 0 -4px; }
+  100% { translate: 0 0; filter: none; }
+}
+
+/* The whole name played: a wave of light along it, a letter at a time. */
+.statue__letter.is-played {
+  animation: letter-wave 1.3s ease-out var(--wave, 0s);
+}
+
+@keyframes letter-wave {
+  0% { translate: 0 0; filter: none; }
+  22% { translate: 0 -16px; filter: drop-shadow(0 0 16px rgba(240, 182, 74, 0.95)) brightness(1.06); }
+  48% { translate: 0 0; }
+  100% { translate: 0 0; filter: none; }
+}
+
+/* --------------------------------------------------------- the fire */
+
+/* Stoked, the flames jump; three quick clicks and they roar. */
+.campfire.is-stoked .campfire__flames {
+  animation: flame-sway 2.4s ease-in-out infinite alternate, fire-flare 1.2s ease-out;
+}
+
+.campfire.is-roaring .campfire__flames {
+  animation: flame-sway 2.4s ease-in-out infinite alternate, fire-roar 2.5s ease-out;
+}
+
+.campfire.is-stoked .campfire__glow,
+.campfire.is-roaring .campfire__glow {
+  animation: fire-glow 1.3s ease-in-out infinite alternate, glow-flare 1.4s ease-out;
+}
+
+@keyframes fire-flare {
+  0% { scale: 1; }
+  20% { scale: 1.3 1.5; }
+  100% { scale: 1; }
+}
+
+@keyframes fire-roar {
+  0% { scale: 1; }
+  12% { scale: 1.55 1.95; }
+  55% { scale: 1.35 1.6; }
+  100% { scale: 1; }
+}
+
+@keyframes glow-flare {
+  20% { scale: 1.5; }
+}
+
+.click-ember {
+  position: absolute;
+  z-index: 2;
+  bottom: 30%;
+  left: calc(50% + var(--x));
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #f7a23b;
+  box-shadow: 0 0 5px 1px rgba(247, 162, 59, 0.75);
+  opacity: 0;
+  pointer-events: none;
+  animation: click-ember var(--d) ease-out both;
+}
+
+@keyframes click-ember {
+  0% { opacity: 1; translate: 0 0; }
+  100% { opacity: 0; translate: var(--drift) calc(var(--fig-h) * var(--rise)); }
+}
+
+/* ------------------------------------------------ the axe and the pile */
+
+/* The axe out of the stump while he has it, the round on the stump to be
+   split and its halves flying, and the logs stacked on the pile. */
+.s-axe.is-lifted,
+.s-block:not(.is-set),
+.s-half:not(.is-flying),
+.s-spare:not(.is-stacked) {
+  opacity: 0;
+}
+
+.s-block.is-set {
+  animation: block-drop 0.16s ease-in;
+}
+
+@keyframes block-drop {
+  from { translate: 0 -14px; }
+  to { translate: 0 0; }
+}
+
+.s-half {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.s-spare.is-new {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: spare-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes spare-pop {
+  from { scale: 0.3; }
+  to { scale: 1; }
+}
+
+/* Clicked with him too busy to come, it only shifts in the stump. */
+.s-axe.is-wiggled {
+  animation: axe-wiggle 0.5s ease-out;
+}
+
+@keyframes axe-wiggle {
+  20% { translate: 1.6px -1px; }
+  40% { translate: -1.6px 0; }
+  60% { translate: 1px -0.5px; }
+  100% { translate: 0 0; }
+}
+
+/* --------------------------------------------------------- the tent */
+
+.s-tent {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.s-tent.is-snoring {
+  animation: tent-breathe 1.25s ease-in-out 2;
+}
+
+@keyframes tent-breathe {
+  0%, 100% { scale: 1 1; }
+  50% { scale: 1.05 1.025; }
+}
+
+/* The z's drifting out of the door. */
+.click-z {
+  position: absolute;
+  z-index: 2;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: calc(var(--fig-h) * 0.07 * var(--z, 1));
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  animation: z-rise 1.5s ease-out both;
+}
+
+@keyframes z-rise {
+  0% { opacity: 0; translate: 0 0; }
+  20% { opacity: 0.85; }
+  100% { opacity: 0; translate: calc(var(--fig-h) * 0.1) calc(var(--fig-h) * -0.22); }
+}
+
+/* ------------------------------------------------------- the pegboard */
+
+/* A tool clicked swings on its peg; taken down, it's gone from the board
+   while he has it. */
+.s-tool {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+}
+
+.s-tool.is-jostled {
+  animation: tool-swing 0.6s ease-out;
+}
+
+@keyframes tool-swing {
+  20% { rotate: 6deg; }
+  45% { rotate: -4deg; }
+  70% { rotate: 2deg; }
+  100% { rotate: 0deg; }
+}
+
+.s-tool.is-taken {
+  opacity: 0;
+}
+
+/* ------------------------------------------------- the control room */
+
+/* The clock's hands, turned about its middle (in its set's own units) to
+   the hour the sky shows. */
+.s-hand {
+  transform-box: view-box;
+  transform-origin: 120px -404px;
+}
+
+.s-readout--found {
+  fill: #f0b64a;
+}
+
+/* A rack's lights running top to bottom (--ripple: how far down). */
+.s-led.is-rippling {
+  animation: led-ripple 0.5s ease-out var(--ripple, 0s) both;
+}
+
+@keyframes led-ripple {
+  0% { fill: var(--led); opacity: 1; }
+  35% { fill: #f4fff6; opacity: 1; r: 4.2px; }
+  100% { fill: var(--led); opacity: 1; }
+}
+
+/* -------------------------------------------------------- the stars */
+
+/* At night the stars take clicks, each over a wider patch than it looks. */
+.sky-stars.is-wishable i {
+  pointer-events: auto;
+}
+
+.sky-stars.is-wishable i::after {
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+  content: "";
+}
+
+.sky-stars i.is-wished {
+  opacity: 0 !important;
+  animation: none;
+}
+
+/* A shooting star: a streak whose head leaves from where the star was,
+   down and away from the middle of the sky (--dir). */
+.shooting-star {
+  position: absolute;
+  width: 96px;
+  height: 2px;
+  margin: -1px 0 0 -96px;
+  border-radius: 2px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), #fff 88%, #fffbe8);
+  transform-origin: 100% 50%;
+  rotate: calc(90deg - var(--dir) * 66deg);
+  pointer-events: none;
+  animation: shoot 0.95s cubic-bezier(0.3, 0.1, 0.6, 1) both;
+}
+
+@keyframes shoot {
+  0% { opacity: 0; translate: 0 0; }
+  14% { opacity: 1; }
+  100% { opacity: 0; translate: calc(var(--dir) * 280px) 125px; }
+}
+
+/* ------------------------------------------------ in his hand */
+
+/* The axe and the tools, turned about his hand by clickables.js. */
+.prop-axe,
+.prop-tool {
+  transform-origin: 70px 142px;
+}
+
+.figure .prop-axe__handle,
+.figure .prop-tool__handle {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3px;
+  stroke-linecap: round;
+}
+
+.figure .prop-axe__head,
+.figure .prop-tool__metal {
+  fill: #4d4944;
+  stroke: var(--ink);
+  stroke-width: 1.6px;
+  stroke-linejoin: round;
+}
+
+.figure .prop-tool__body {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.8px;
+  stroke-linejoin: round;
+}
+
+.figure .prop-tool__thin {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2px;
+}
+
+.figure .prop-tool__vial {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 1px;
+}
+
+.figure .prop-tool__bubble {
+  fill: #fff8e6;
+  stroke: var(--ink);
+  stroke-width: 0.8px;
+}
+
+/* ------------------------------------------------------ discovery guide */
+
+/* One restrained glint per kind of secret. The whole hit area gains a
+   pencil outline only under the pointer, so the scenery stays uncluttered. */
+.scene.has-clicks .click-hit.is-guide:not(.is-found, .is-off)::after {
+  content: "";
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  translate: -50% -50%;
+  border: 1.5px solid var(--amber);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  box-shadow: 0 0 0 0 rgba(216, 137, 47, 0.42);
+  pointer-events: none;
+  animation: discovery-glint 2.4s ease-out infinite;
+}
+
+@media (hover: hover) {
+  .scene.has-clicks .click-hit:not(.is-off):hover::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border: 1px dashed color-mix(in srgb, var(--amber) 72%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--amber) 5%, transparent);
+    pointer-events: none;
+  }
+}
+
+.scene.has-clicks .click-hit:not(.is-off):focus-visible {
+  outline: none;
+}
+
+.scene.has-clicks .click-hit:not(.is-off):focus-visible::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px dashed var(--amber);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+  pointer-events: none;
+}
+
+/* One keyboard control represents the decorative star field. It stays out
+   of the artwork until focused, then appears as a clear action. */
+.click-star-access {
+  position: fixed;
+  top: 74px;
+  left: 50%;
+  z-index: 91;
+  padding: 9px 13px;
+  color: var(--paper);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--ink);
+  border: 2px solid var(--amber);
+  border-radius: 999px;
+  translate: -50% 0;
+}
+
+.click-star-access:not(:focus-visible) {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.click-star-access:focus-visible {
+  outline: 3px solid var(--paper);
+  outline-offset: 3px;
+}
+
+@keyframes discovery-glint {
+  0%, 38% { opacity: 0.72; box-shadow: 0 0 0 0 rgba(216, 137, 47, 0.38); }
+  68%, 100% { opacity: 0; box-shadow: 0 0 0 10px rgba(216, 137, 47, 0); }
+}
+
+.discovery-guide {
+  position: fixed;
+  left: 28px;
+  bottom: 70px;
+  z-index: 92;
+  opacity: 0;
+  translate: 0 8px;
+  pointer-events: none;
+  transition: opacity 180ms ease, translate 180ms ease;
+}
+
+.discovery-guide.is-live {
+  opacity: 1;
+  translate: 0 0;
+  pointer-events: auto;
+}
+
+.discovery-guide__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 6px 10px;
+  color: var(--ink);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(32, 32, 31, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.discovery-guide__toggle:hover,
+.discovery-guide__toggle[aria-expanded="true"] {
+  background: #fff;
+}
+
+.discovery-guide__toggle:focus-visible,
+.discovery-guide__dismiss:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.discovery-guide__spark {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--amber);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(216, 137, 47, 0.12);
+}
+
+.discovery-guide__count {
+  min-width: 35px;
+  padding: 4px 6px;
+  color: var(--paper);
+  text-align: center;
+  background: var(--ink);
+  border-radius: 999px;
+}
+
+.discovery-guide.is-complete .discovery-guide__spark {
+  background: var(--amber);
+}
+
+.discovery-guide__toggle.is-celebrating {
+  animation: discovery-found 0.8s ease-out;
+}
+
+@keyframes discovery-found {
+  35% { transform: translateY(-3px) rotate(-1deg); box-shadow: 0 7px 20px rgba(216, 137, 47, 0.2); }
+}
+
+.discovery-guide__note {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 0;
+  width: min(286px, calc(100vw - 32px));
+  padding: 15px 16px 13px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 14px 14px 14px 4px;
+  box-shadow: 7px 8px 0 rgba(32, 32, 31, 0.09);
+  pointer-events: none;
+}
+
+.discovery-guide__note::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 20px;
+  width: 12px;
+  height: 12px;
+  background: var(--paper);
+  border-right: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  rotate: 45deg;
+}
+
+.discovery-guide__note p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.discovery-guide__dismiss {
+  position: relative;
+  z-index: 1;
+  padding: 5px 9px;
+  color: var(--ink);
+  font: 700 10px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(32, 32, 31, 0.32);
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+body:has(.story-panel:not([hidden])) .discovery-guide,
+body:has(.case:not([hidden])) .discovery-guide,
+body:has(.journey-finale:not([hidden])) .discovery-guide {
+  display: none;
+}
+
+/* ------------------------------------------------------- journey finale */
+
+.journey-finale {
+  position: fixed;
+  inset: 0;
+  /* Above the scene's character, speech and transient interaction layers. */
+  z-index: 2147483640;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.journey-finale.is-open {
+  opacity: 1;
+}
+
+.journey-finale__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: rgba(28, 27, 25, 0.42);
+  border: 0;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  cursor: pointer;
+}
+
+.journey-finale__card {
+  position: relative;
+  width: min(570px, 100%);
+  padding: clamp(28px, 5vw, 48px);
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 18px 18px 18px 5px;
+  box-shadow: 12px 14px 0 rgba(216, 137, 47, 0.27);
+  transform: translateY(18px) rotate(-0.35deg) scale(0.98);
+  transition: transform 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.journey-finale.is-open .journey-finale__card {
+  transform: translateY(0) rotate(-0.35deg) scale(1);
+}
+
+.journey-finale__close {
+  position: absolute;
+  top: 13px;
+  right: 15px;
+  width: 36px;
+  height: 36px;
+  padding: 0 0 3px;
+  color: var(--ink);
+  font: 400 28px/1 Arial, sans-serif;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.journey-finale__close:hover {
+  background: rgba(32, 32, 31, 0.07);
+}
+
+.journey-finale__eyebrow {
+  margin: 0 0 12px;
+  color: var(--muted-ink);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.journey-finale__eyebrow span {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  margin-right: 7px;
+  place-items: center;
+  color: var(--paper);
+  background: var(--amber);
+  border-radius: 50%;
+}
+
+.journey-finale h2 {
+  margin: 0 0 12px;
+  font: 800 clamp(34px, 7vw, 58px)/0.95 var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.journey-finale h2:focus {
+  outline: none;
+}
+
+.journey-finale__card > p:not(.journey-finale__eyebrow) {
+  max-width: 48ch;
+  margin: 0;
+  color: #4f4c47;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.journey-finale__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 26px;
+}
+
+.journey-finale__actions a,
+.journey-finale__continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 10px 14px;
+  color: var(--ink);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: 0.07em;
+  text-decoration: none;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(32, 32, 31, 0.34);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.journey-finale__actions a:hover,
+.journey-finale__continue:hover {
+  background: rgba(32, 32, 31, 0.06);
+}
+
+.journey-finale__actions .journey-finale__primary {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.journey-finale__actions .journey-finale__primary:hover {
+  background: #000;
+}
+
+.journey-finale__actions a:focus-visible,
+.journey-finale__continue:focus-visible,
+.journey-finale__close:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.journey-finale__continue {
+  margin-top: 18px;
+  min-height: 0;
+  padding: 5px 0;
+  color: var(--muted-ink);
+  border: 0;
+  border-radius: 0;
+}
+
+@media (max-width: 760px) {
+  .discovery-guide {
+    left: 16px;
+    bottom: 16px;
+  }
+
+  .discovery-guide__toggle {
+    min-height: 38px;
+  }
+
+  .journey-finale {
+    align-items: end;
+    padding: 14px;
+  }
+
+  .journey-finale__card {
+    padding: 32px 24px 26px;
+    border-radius: 17px 17px 8px 8px;
+    box-shadow: 7px 8px 0 rgba(216, 137, 47, 0.27);
+  }
+
+  .journey-finale__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .journey-finale__actions a {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statue__letter.is-struck,
+  .statue__letter.is-played,
+  .campfire.is-stoked .campfire__flames,
+  .campfire.is-roaring .campfire__flames,
+  .s-tent.is-snoring,
+  .s-tool.is-jostled,
+  .s-led.is-rippling,
+  .s-spare.is-new,
+  .s-axe.is-wiggled,
+  .s-block.is-set {
+    animation: none;
+  }
+
+  .scene.has-clicks .click-hit.is-guide:not(.is-found, .is-off)::after,
+  .discovery-guide__toggle.is-celebrating {
+    animation: none;
+  }
+
+  .discovery-guide,
+  .journey-finale,
+  .journey-finale__card {
+    transition: none;
+  }
+}

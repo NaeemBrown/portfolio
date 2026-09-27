@@ -36,6 +36,18 @@ const memory = (() => {
     incidents: [], // what he has fixed: { id, at, secs }, the latest last
     fixed: 0, // how many things he has fixed, ever
     lateNightOn: '', // the date he last remarked on the hour
+    teleports: 0, // times he has teleported for them, ever
+    teleportTips: 0, // visits he has told them they can
+    teleportRound: [], // the teleports still to come this round, in order (teleports.js)
+    teleportLast: '', // the last one he did
+    teleportsSeen: {}, // which they've seen, by id
+    found: {}, // the things that answer a click they've found, by id (clickables.js)
+    woodpile: 0, // logs he has split for them, stacked on the pile
+    wishes: 0, // wishes made on shooting stars
+    namePlayed: 0, // times they've played his name on the statue's letters
+    clickNudges: 0, // visits he has told them things answer a click
+    clickGuideSeen: false, // whether the small discoveries explanation was dismissed
+    finaleSeen: false, // whether the completed-journey contact card was shown
   });
   let data = blank();
   try {
@@ -62,6 +74,72 @@ const memory = (() => {
   };
 })();
 window.addEventListener('pagehide', () => memory.flush());
+
+/* -------------------------------------------------------- journey finale */
+
+const livingFinale = document.querySelector('.journey-finale');
+const livingFinaleTitle = livingFinale?.querySelector('#journey-finale-title');
+let livingFinaleReturnFocus = null;
+let livingFinaleHideTimer = 0;
+
+function livingFinaleFocusable() {
+  if (!livingFinale) return [];
+  return [...livingFinale.querySelectorAll('a[href], button:not([disabled])')]
+    .filter((el) => el.tabIndex >= 0 && !el.hidden && el.getClientRects().length);
+}
+
+function livingFinaleOpen() {
+  if (!livingFinale || !livingFinale.hidden) return false;
+  window.clearTimeout(livingFinaleHideTimer);
+  // The finale is the message now; do not leave an older speech bubble
+  // competing with it above the world.
+  if (typeof hushSpeech === 'function') hushSpeech();
+  livingFinaleReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  livingFinale.hidden = false;
+  requestAnimationFrame(() => {
+    livingFinale.classList.add('is-open');
+    livingFinaleTitle?.focus({ preventScroll: true });
+  });
+  document.getElementById('travel-status').textContent = 'Journey complete. Contact options are open.';
+  return true;
+}
+
+function livingFinaleClose() {
+  if (!livingFinale || livingFinale.hidden) return;
+  livingFinale.classList.remove('is-open');
+  const finish = () => {
+    livingFinale.hidden = true;
+    livingFinaleReturnFocus?.focus?.({ preventScroll: true });
+    livingFinaleReturnFocus = null;
+  };
+  if (livingReduced.matches) finish();
+  else livingFinaleHideTimer = window.setTimeout(finish, 220);
+}
+
+livingFinale?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-finale-close]')) livingFinaleClose();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (!livingFinale || livingFinale.hidden) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    livingFinaleClose();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const focusable = livingFinaleFocusable();
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === livingFinaleTitle)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}, true);
 
 // Whether they have been before, and when they were last here; then this
 // visit is counted. ?visit=first or ?visit=return pretends either way, and
@@ -98,8 +176,8 @@ function isFree() {
     state.speed === 0 && !state.hop && !state.jump &&
     state.seat === 0 && state.inspect === 0 && state.typeIn === 0 &&
     state.projectView === 0 && state.termView === 0 && state.compose === 0 &&
-    handcar.stage === 'off' && state.courseTime === 0 && !pointerPlay.reaction &&
-    !inputKeys.left && !inputKeys.right && !inputKeys.sprint &&
+    handcar.stage === 'off' && state.courseTime === 0 && !chalkBusy() && !pointerPlay.reaction &&
+    !inputKeys.left && !inputKeys.right && !inputKeys.sprint && !teleport.phase &&
     (state.destinationId === null || state.announced);
 }
 
@@ -147,9 +225,10 @@ function livingDaypartName(hour = livingHour()) {
 }
 
 // Something he fixed (`secs` it took) or something reported (`secs` null),
-// kept for the terminal's `incidents`.
-function logIncident(id, secs) {
-  memory.data.incidents = [...memory.data.incidents, { id, at: Date.now(), secs }].slice(-20);
+// kept for the terminal's `incidents`; `by` 'you' if the visitor broke it
+// (clickables.js).
+function logIncident(id, secs, by = null) {
+  memory.data.incidents = [...memory.data.incidents, { id, at: Date.now(), secs, ...(by ? { by } : {}) }].slice(-20);
   if (secs !== null) memory.data.fixed += 1;
   memory.save();
 }
@@ -336,10 +415,10 @@ function livingVisited(id) {
   memory.data.visited[id] = true;
   memory.save();
   markVisited();
-  if (!memory.data.toured && TOUR.every((stop) => memory.data.visited[stop])) {
+  if (TOUR.every((stop) => memory.data.visited[stop])) {
     memory.data.toured = true;
+    if (!memory.data.finaleSeen) tour.pending = true;
     memory.save();
-    tour.pending = true;
   }
 }
 
@@ -352,7 +431,9 @@ function markVisited() {
 function updateTour() {
   if (!tour.pending || !isFree() || !canSpeak()) return;
   tour.pending = false;
-  remark('<span>That&rsquo;s the whole tour.</span><span>Thanks for walking round with me!</span>', 3400);
+  memory.data.finaleSeen = true;
+  memory.save();
+  livingFinaleOpen();
 }
 
 /* ------------------------------------------------------------- each frame */
@@ -379,7 +460,7 @@ function livingPose(base, dt, now, unit) {
     idle.quiet += dt;
   } else {
     idle.quiet = 0;
-    idle.next = 8 + 6 * Math.random();
+    idle.next = idleWait(IDLE_FIRST);
     idle.last = null;
   }
   updateGreeting(dt);
@@ -390,12 +471,13 @@ function livingPose(base, dt, now, unit) {
   updateIdle();
   updateBird(dt);
   updateWind(dt);
-  return updateRunMoves(ambientPose(base, dt, now, unit), dt, now, unit);
+  updateClickables(dt); // clickables.js
+  return updateTeleport(updateRunMoves(ambientPose(base, dt, now, unit), dt, now, unit), dt, unit);
 }
 
 // How long he has been left to himself, when he next does something, and
 // what he did last (see idling about).
-const idle = { quiet: 0, next: 9, last: null };
+const idle = { quiet: 0, next: 4, last: null };
 
 // Where the camera is this frame, for what needs to know what is on screen
 // (script.js, frame, once the world has moved): renderX, the world px in
@@ -435,9 +517,11 @@ function startLiving() {
   const unit = parseFloat(getComputedStyle(figure).height) / UNITS_TALL;
   view.unit = unit;
   poiArtifactBuild();
+  buttons.forEach((button) => button.addEventListener('click', () => navTapped(button)));
   restoreSmores(unit);
   markVisited();
   buildLights();
+  idleBuild(); // idles.js: the trees and lamps its acts need
   buildStars();
   buildBird();
   // The sky as it is now, straight away, and the lights as they should be.
@@ -445,6 +529,7 @@ function startLiving() {
   updateSky();
   updateSwitches(performance.now(), true);
   incident.cooldownUntil = performance.now() + 20e3; // not straight away
+  startClickables(); // clickables.js: after the scenery, on the same promise
   // After buildSurroundings, which script.js queued on the same promise first.
   document.fonts.ready.then(() => {
     updateFixedCount();
@@ -461,6 +546,11 @@ function startLiving() {
    Anything the visitor does stops it; sitting, he stands up first. */
 
 const SETTLE_AFTER = 35; // seconds left alone before he sits down to work
+const IDLE_FIRST = [3, 5]; // seconds left alone before his first act, at least and at most
+const IDLE_GAP = [2, 4]; // seconds between one act ending and the next, at least and at most
+
+// A number of seconds between `range`'s two.
+const idleWait = ([least, most]) => least + (most - least) * Math.random();
 const phoneProp = document.querySelector('.prop-phone');
 
 // Shows the phone in his hand, buzzing or not.
@@ -634,16 +724,19 @@ function settleAct() {
 }
 
 // What he might do next, and how likely, given the hour and whether there
-// is a mouse to look at; never the same thing twice running.
+// is a mouse to look at; never the same thing twice running, nor one of
+// the last few. The part of the day's own ten (idles.js) join the five he
+// does at any hour, whichever of them suit where he is and what's about.
 function pickIdle() {
   const late = livingHour() >= 22 || livingHour() < 7;
   const options = [
-    ['look', 3, lookAct],
-    ['stretch', 2, stretchAct],
-    ['phone', 3, phoneAct],
-    ['kick', 2, kickAct],
-    ['yawn', late ? 3 : 0, yawnAct],
-  ].filter(([kind, weight]) => weight > 0 && kind !== idle.last);
+    ['look', 2, lookAct],
+    ['stretch', 1, stretchAct],
+    ['phone', 2, phoneAct],
+    ['kick', 1, kickAct],
+    ['yawn', late ? 2 : 0, yawnAct],
+    ...idleDaypartOptions(),
+  ].filter(([kind, weight]) => weight > 0 && kind !== idle.last && !idleRecently(kind));
   let roll = Math.random() * options.reduce((sum, [, weight]) => sum + weight, 0);
   for (const option of options) {
     roll -= option[1];
@@ -661,27 +754,39 @@ function incidentBusy() {
 }
 
 function updateIdle() {
-  if (livingReduced.matches || ambient.act || ambient.out || incidentBusy()) return;
+  if (livingReduced.matches || incidentBusy()) return;
+  // Up after midnight, he says so (updateLateNight) before he gets up to
+  // anything, however long the night's acts are.
+  if (livingHour() < 5 && memory.data.lateNightOn !== new Date().toDateString() && canSpeak() && !ambient.act) return;
+  // Whatever he's in the middle of, his own act or not (a fix, a wave, a
+  // brace against the wind), a breather after it before the next.
+  if (ambient.act || ambient.out) {
+    idle.next = Math.max(idle.next, idle.quiet + IDLE_GAP[0]);
+    return;
+  }
   const artifact = poiArtifactStation();
   if (artifact) {
     if (idle.quiet < idle.next) return;
-    const [kind, , make] = poiArtifactPick(artifact, idle.last);
+    const [kind, , make] = idleStationPick(artifact) || poiArtifactPick(artifact, idle.last);
     const act = make();
     idle.last = kind;
-    idle.next = idle.quiet + act.duration + 6 + 6 * Math.random();
+    idle.next = idle.quiet + act.duration + idleWait(IDLE_GAP);
     startAct(act);
     return;
   }
   if (idle.quiet >= SETTLE_AFTER && idle.last !== 'settle') {
     idle.last = 'settle';
-    startAct(settleAct());
+    // At dusk he may sit and watch the sun go down instead, and at night
+    // lie back and look at the stars (idles.js).
+    startAct(idleSettleAct() || settleAct());
     return;
   }
   if (idle.quiet < idle.next || idle.last === 'settle') return;
   const [kind, , make] = pickIdle();
   const act = make();
   idle.last = kind;
-  idle.next = idle.quiet + act.duration + 6 + 6 * Math.random();
+  idleDid(kind);
+  idle.next = idle.quiet + act.duration + idleWait(IDLE_GAP);
   startAct(act);
 }
 
@@ -1221,6 +1326,7 @@ const noises = {
     sfx.tone(90, { type: 'sawtooth', to: 330, vol: 0.035, dur: 0.28, at });
   },
   creak(at = 0) {
+    if (sfx.sample?.('creak', { vol: 0.22, rate: 0.92, at, vary: 0.04 })) return;
     sfx.tone(180, { type: 'sawtooth', to: 130, vol: 0.03, dur: 0.6, at, attack: 0.05 });
     sfx.hiss({ freq: 900, q: 4, vol: 0.035, dur: 0.5, at });
   },
@@ -1229,14 +1335,21 @@ const noises = {
     sfx.tone(2400, { type: 'square', vol: 0.02, dur: 0.015, at: at + 0.02 });
   },
   alarm(at = 0) {
+    if (sfx.sample?.('serverAlarm', { vol: 0.16, at, vary: 0.01 })) return;
     [0, 0.16, 0.32].forEach((gap) => sfx.tone(880, { type: 'square', vol: 0.03, dur: 0.08, at: at + gap }));
   },
-  thump(at = 0) {
+  // A hand against something: a lamp post (`post`) or the lantern.
+  thump(at = 0, post = false) {
+    if (post && sfx.sample?.('postThump', { vol: 0.34, at, vary: 0.04 })) return;
     sfx.tap(0.5, at);
     sfx.tone(420, { type: 'triangle', to: 380, vol: 0.05, dur: 0.3, at });
   },
   // A lamp switched on (a click, and the hum of it catching) or off.
   flick(on, at = 0) {
+    if (sfx.sample?.('uiSwitch', { vol: 0.1, rate: on ? 1.1 : 0.85, at, vary: 0.02 })) {
+      if (on) sfx.tone(104, { type: 'sawtooth', to: 118, vol: 0.008, dur: 0.4, at: at + 0.03, attack: 0.06 });
+      return;
+    }
     sfx.tone(on ? 2300 : 1800, { type: 'square', vol: 0.018, dur: 0.012, at });
     if (on) sfx.tone(104, { type: 'sawtooth', to: 118, vol: 0.012, dur: 0.4, at: at + 0.03, attack: 0.06 });
   },
@@ -1321,7 +1434,7 @@ function lightFixture({ id, glows, label, x, stand, lines, frames, duration, hit
       frames,
       // Each hit but the last makes it flicker; the last puts it right.
       beats: Object.fromEntries(hits.map((at, i) => [at, () => {
-        noises.thump();
+        noises.thump(0, id.startsWith('lamp'));
         if (i < hits.length - 1) show('faulty');
         else fixture.restore();
       }])),
@@ -1411,13 +1524,13 @@ const FIXTURES = {
     restore() {
       this.broken = false;
       this.show(false);
-      noises.clunk();
+      if (!sfx.sample?.('cablePlug', { vol: 0.34, vary: 0.02 })) noises.clunk();
     },
     fix: {
       duration: 2.2,
       frames: FIX_RESEAT,
       beats: {
-        0.45: () => sfx.tap(1.6),
+        0.45: () => { if (!sfx.sample?.('cableUnplug', { vol: 0.3, vary: 0.02 })) sfx.tap(1.6); },
         0.56: () => FIXTURES.rack.restore(),
       },
     },
@@ -1433,6 +1546,8 @@ const incident = {
   after: 10, // seconds left alone before one may happen
   cooldownUntil: 0, // performance.now() before which none happen
   checkAt: 0,
+  say: null, // what he says when paged, if not one of the fixture's lines
+  byVisitor: false, // broken by the visitor clicking it too much (clickables.js)
 };
 const current = () => FIXTURES[incident.id];
 
@@ -1476,7 +1591,7 @@ function pagedAct(toward, fixture) {
       if (s > 0.5) ambient.face = toward;
       if (!said && s > 0.55) {
         said = true;
-        if (canSpeak()) remark(`<span>${pick(fixture.lines)}</span>`, 1700);
+        if (canSpeak()) remark(`<span>${incident.say || pick(fixture.lines)}</span>`, 1700);
       }
       return postureAt(frames, s, base);
     },
@@ -1527,7 +1642,9 @@ function finishIncident() {
   const fixture = current();
   if (!fixture) return;
   if (fixture.broken) fixture.restore();
-  logIncident(incident.id.replace(/-.*/, ''), (performance.now() - incident.failedAt) / 1000);
+  logIncident(incident.id.replace(/-.*/, ''), (performance.now() - incident.failedAt) / 1000, incident.byVisitor ? 'you' : null);
+  incident.say = null;
+  incident.byVisitor = false;
   updateFixedCount();
   sfx.chime(0.1);
   if (canSpeak()) remark(`<span>${pick(['Fixed.', 'There we go.', 'Sorted.', 'Back up.'])}</span>`, 1500);
@@ -1551,7 +1668,7 @@ function updateIncidents(dt) {
       if (now < incident.cooldownUntil || now < incident.checkAt || intro.active || !isFree() || idle.quiet < incident.after) return;
       if (ambient.act && ambient.act.kind !== 'settle') return; // let him finish what he is doing
       incident.checkAt = now + 1000;
-      const ready = Object.keys(FIXTURES).filter((id) => onScreen(FIXTURES[id].x(), 70));
+      const ready = Object.keys(FIXTURES).filter((id) => onScreen(FIXTURES[id].x(), 70) && !clickBusy(id));
       if (ready.length) startIncident(pick(ready));
       return;
     }
@@ -1614,6 +1731,7 @@ function birdPerches() {
     at((benchX + experienceX) / 2, 0, 222),
     at(skillsX, 150, 470), // the control room's wall
     at(skillsX, 520, 470),
+    ...idlePerches(at), // the trees and lamps idles.js adds
   ];
 }
 
@@ -1629,6 +1747,8 @@ const bird = {
   awayFor: 0,
   lastFigureX: null,
   shown: '',
+  woken: false, // flown out of the tent at night, on its way back to roost
+  bedtime: false, // seen off to its roost at dusk (idles.js), till morning
 };
 
 function buildBird() {
@@ -1703,6 +1823,17 @@ function flush(figureX) {
   flyTo({ x: bird.x + away * sceneWidth * 0.7, y: sceneHeight * 0.9 }, 'away');
 }
 
+// Out of wherever it was hiding (the tent, clickables.js), from (x, y): off
+// to a perch, or at night up and away, and back to its roost.
+function livingBirdBurst(x, y) {
+  if (!bird.el || livingReduced.matches) return;
+  Object.assign(bird, { x, y, flight: null, woken: livingScene.dataset.daypart === 'night' });
+  if (bird.woken) flyTo({ x: x + (Math.sign(x - state.x) || 1) * sceneWidth * 0.7, y: sceneHeight * 0.9 }, 'away');
+  else flush(state.x);
+  if (!sfx.sample?.('birdFlutter', { vol: 0.2, vary: 0.04 })) sfx.hiss({ freq: 1600, to: 900, q: 1, vol: 0.08, dur: 0.4, attack: 0.02 });
+  if (!sfx.sample?.('birdChirp', { vol: 0.12, at: 0.05, vary: 0.05 })) sfx.tone(3300, { to: 4400, vol: 0.03, dur: 0.06, at: 0.05 });
+}
+
 function updateBird(dt) {
   if (!bird.el) return;
   const unit = view.unit;
@@ -1713,10 +1844,13 @@ function updateBird(dt) {
   const speed = bird.lastFigureX === null || dt <= 0 ? 0 : Math.abs(figureX - bird.lastFigureX) / dt;
   bird.lastFigureX = figureX;
 
-  if (night && bird.mode !== 'roosting') {
+  // Seen off to bed at dusk (idles.js, goodnight to the bird), it stays
+  // there till morning.
+  if (bird.bedtime && (livingScene.dataset.daypart === 'dawn' || livingScene.dataset.daypart === 'day')) bird.bedtime = false;
+  if (night && bird.mode !== 'roosting' && !bird.woken) {
     bird.mode = 'roosting';
     bird.flight = null;
-  } else if (!night && bird.mode === 'roosting') {
+  } else if (!night && bird.mode === 'roosting' && !bird.bedtime) {
     bird.mode = 'away';
     bird.awayFor = 1;
   }
@@ -1745,7 +1879,9 @@ function updateBird(dt) {
             bird.el.classList.add('is-pecking');
             window.setTimeout(() => bird.el?.classList.remove('is-pecking'), 380);
           } else if (onScreen(bird.x)) {
-            [0, 0.09].forEach((at) => sfx.tone(3300, { to: 4300, vol: 0.025, dur: 0.05, at }));
+            if (!sfx.sample?.('birdChirp', { vol: 0.09, rate: 1.05, vary: 0.06 })) {
+              [0, 0.09].forEach((at) => sfx.tone(3300, { to: 4300, vol: 0.025, dur: 0.05, at }));
+            }
           }
         }
       }
@@ -1760,10 +1896,14 @@ function updateBird(dt) {
     bird.el.classList.toggle('is-landing', f.then === 'perched' && k > 0.85);
     if (k >= 1) {
       bird.flight = null;
+      bird.woken = false;
       bird.el.classList.remove('is-landing');
       if (f.then === 'perched') {
         bird.mode = 'perched';
         bird.nextFidget = 0.8;
+      } else if (f.then === 'visit' || f.then === 'roosting') {
+        // Down beside him for his lunch, or off to bed (idles.js).
+        bird.mode = f.then;
       } else {
         bird.mode = 'away';
         bird.awayFor = 8 + 12 * Math.random();
@@ -1878,9 +2018,9 @@ function startGust(dir = Math.random() < 0.5 ? -1 : 1) {
   void world.offsetWidth; // so the bending plays again
   world.classList.add('is-gusting');
   wind.left = GUST_TIME;
-  sfx.hiss({ type: 'lowpass', freq: 500, to: 950, vol: 0.14, dur: GUST_TIME, attack: 0.8 });
+  if (!sfx.sample?.('windGust', { vol: 0.22, vary: 0.05 })) sfx.hiss({ type: 'lowpass', freq: 500, to: 950, vol: 0.14, dur: GUST_TIME, attack: 0.8 });
   blowLeaves(dir);
-  if (isFree() && !ambient.act && !ambient.out && !incidentBusy()) startAct(braceAct(dir));
+  if (isFree() && !ambient.act && !ambient.out && !incidentBusy()) startAct(idleGustAct(dir) || braceAct(dir));
 }
 
 function updateWind(dt) {
@@ -1917,6 +2057,8 @@ function updateWind(dt) {
 const livingScene = document.querySelector('.scene');
 const skyWash = document.querySelector('.sky-wash');
 const skyStars = document.querySelector('.sky-stars');
+const skyGalaxy = document.querySelector('.sky-galaxy');
+const skyRidges = document.querySelector('.sky-ridges');
 const skySun = document.querySelector('.sky-sun');
 const sunDisc = document.querySelector('.sky-sun__disc');
 const skyMist = document.querySelector('.sky-mist');
@@ -1931,19 +2073,20 @@ let lightsTransform = '';
 // its colours top to bottom, how bright the lights and the stars, and how
 // thick the mist; between them it blends. The hours standing for the parts
 // of the day (PART_HOURS: 6, 12, 19, 23) are each at its most: dawn cool
-// at the top and gold at the floor, dusk purple over orange.
-const NIGHT_SKY = { wash: 0.66, lights: 1, stars: 1, mist: 0, top: '#111833', mid: '#2c3659', low: '#525a78' };
+// at the top and gold at the floor, dusk purple over orange, and night a
+// deep blue, kept light enough at the floor for his ink to read.
+const NIGHT_SKY = { wash: 0.78, lights: 1, stars: 1, mist: 0, top: '#0b1a58', mid: '#1d3584', low: '#4666b4' };
 const SKY_KEYS = [
   { at: 0, ...NIGHT_SKY },
   { at: 4.4, ...NIGHT_SKY },
-  { at: 5.2, wash: 0.46, lights: 0.8, stars: 0.5, mist: 0.7, top: '#3d4b7a', mid: '#8c7c9a', low: '#d2a9a0' },
+  { at: 5.2, wash: 0.5, lights: 0.8, stars: 0.5, mist: 0.7, top: '#23357a', mid: '#7c7caa', low: '#d2a9a0' },
   { at: 6, wash: 0.26, lights: 0.35, stars: 0, mist: 1, top: '#8fa3cc', mid: '#e2b3ae', low: '#f6d19c' },
   { at: 7.5, wash: 0.1, lights: 0, stars: 0, mist: 0.45, top: '#b6c4dc', mid: '#ecd0c0', low: '#f4e0c0' },
   { at: 9, wash: 0, lights: 0, stars: 0, mist: 0, top: '#b6c4dc', mid: '#ecd0c0', low: '#f4e0c0' },
   { at: 15.5, wash: 0, lights: 0, stars: 0, mist: 0, top: '#9c8cb0', mid: '#d8b09a', low: '#eec48e' },
   { at: 17.5, wash: 0.18, lights: 0.45, stars: 0, mist: 0, top: '#6e5c8c', mid: '#c08a88', low: '#e6a878' },
   { at: 19, wash: 0.34, lights: 0.75, stars: 0.35, mist: 0, top: '#4e4775', mid: '#9c7489', low: '#d69d78' },
-  { at: 20.4, wash: 0.52, lights: 0.92, stars: 0.75, mist: 0, top: '#262a52', mid: '#474870', low: '#86728a' },
+  { at: 20.4, wash: 0.6, lights: 0.92, stars: 0.75, mist: 0, top: '#17236a', mid: '#3a4588', low: '#8074a0' },
   { at: 21.6, ...NIGHT_SKY },
   { at: 24, ...NIGHT_SKY },
 ];
@@ -2045,6 +2188,7 @@ function updateSky() {
   placeSky();
   updateSwitches(now);
   moveMist(now);
+  moveRidges();
   const minute = Math.floor(Date.now() / 60e3);
   if (minute !== skyClock.minute) {
     skyClock.minute = minute;
@@ -2067,6 +2211,8 @@ function paintSky(force = false) {
   setStyle(skyWash, '--wash-low', cssRGB(look.low));
   setStyle(worldLights, '--lights', look.lights.toFixed(3));
   setStyle(skyStars, '--stars', look.stars.toFixed(3));
+  setStyle(skyGalaxy, '--stars', look.stars.toFixed(3));
+  skyStars?.classList.toggle('is-out', look.stars < 0.0005);
   setStyle(skyMist, '--mist', look.mist.toFixed(3));
   if (skyMist) skyMist.hidden = look.mist < 0.005;
   const part = livingDaypartName(hour);
@@ -2112,6 +2258,20 @@ function placeSky() {
     moon.style.translate = `${(sceneWidth * (0.05 + 0.88 * clamp(t, 0, 1))).toFixed(1)}px ${y.toFixed(1)}px`;
     moon.style.opacity = t > 1 ? '0' : clamp(Math.min(t, 1 - t) / 0.06, 0, 1).toFixed(3);
   }
+  // The stars and the Milky Way wheel slowly through the night, about a
+  // point far below the floor: level at midnight, WHEEL degrees an hour.
+  const wheelDegrees = WHEEL * (wrapHour(hour + 12) - 12);
+  const wheel = `${wheelDegrees.toFixed(2)}deg`;
+  const pivot = `${(sceneHeight * 3.5).toFixed(0)}px`;
+  for (const el of [skyStars, skyGalaxy]) {
+    setStyle(el, '--wheel', wheel);
+    setStyle(el, '--pivot-y', pivot);
+  }
+  // The galaxy is one rotated rectangle, unlike the individually rotating
+  // stars. Counter its horizontal drift around the far-below pivot so its
+  // clipped edge stays aligned just outside both sides of the viewport.
+  const galaxyShift = sceneHeight * (0.21 - 3.5) * Math.sin(wheelDegrees * Math.PI / 180);
+  setStyle(skyGalaxy, '--wheel-shift', `${galaxyShift.toFixed(1)}px`);
 }
 
 // The mist drifts slowly, and moves a little slower than the world as he
@@ -2150,18 +2310,36 @@ function switchLight(light, on, flick) {
   if (box && box.right > 0 && box.left < sceneWidth) noises.flick(on);
 }
 
+// Lamps the visitor has switched by clicking them (clickables.js), kept as
+// they left them until the hour next switches them itself: by id, how they
+// left it, and whether the hour had it lit then.
+const lampHolds = {};
+function holdLamp(id, on) {
+  const light = SWITCHED.find((item) => item.id === id);
+  if (!light || on === null) delete lampHolds[id];
+  else lampHolds[id] = { on, natural: litAt(light, skyClock.hour) };
+}
+
+// Whether `light` should be lit now: as the hour has it, or as they left it.
+function lampWanted(light) {
+  const natural = litAt(light, skyClock.hour);
+  const hold = lampHolds[light.id];
+  if (hold && hold.natural !== natural) delete lampHolds[light.id];
+  return lampHolds[light.id]?.on ?? natural;
+}
+
 // Each frame, the lights that should have changed at the hour the sky
 // shows, one at a time; all at once, quietly, when `instant`.
 function updateSwitches(now, instant = false) {
   for (const light of SWITCHED) {
-    const want = litAt(light, skyClock.hour);
+    const want = lampWanted(light);
     if (instant) switchLight(light, want, false);
     else if (lamps.lit[light.id] !== want && !lamps.queue.includes(light)) lamps.queue.push(light);
   }
   if (instant) lamps.queue.length = 0;
   if (!lamps.queue.length || now < lamps.nextAt) return;
   const light = lamps.queue.shift();
-  const want = litAt(light, skyClock.hour);
+  const want = lampWanted(light);
   if (lamps.lit[light.id] === want) return;
   switchLight(light, want, true);
   lamps.nextAt = now + SWITCH_GAP;
@@ -2309,18 +2487,142 @@ function buildLights() {
   worldLights.innerHTML = out.join('');
 }
 
-// Stars at fixed places in the top of the sky, and a moon.
+// How far through its month the moon is tonight, by the visitor's date:
+// 0 new, 0.5 full (from a known new moon, and the length of a lunar
+// month). A time picked on the picker changes the hour, not the night.
+function moonPhase(at = Date.now()) {
+  const days = (at - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+  return (((days / 29.530588853) % 1) + 1) % 1;
+}
+
+// The lit part of a moon `r` across the middle of a 30 unit box, `phase`
+// through its month: lit on the right while it waxes, the left as it wanes.
+function moonLit(phase, r = 14.5) {
+  const k = Math.cos(2 * Math.PI * phase);
+  const rx = Math.max(0.01, r * Math.abs(k)).toFixed(2);
+  const [top, bottom] = [`15 ${(15 - r).toFixed(2)}`, `15 ${(15 + r).toFixed(2)}`];
+  return phase < 0.5
+    ? `M${top}A${r} ${r} 0 0 1 ${bottom}A${rx} ${r} 0 0 ${k > 0 ? 0 : 1} ${top}Z`
+    : `M${top}A${r} ${r} 0 0 0 ${bottom}A${rx} ${r} 0 0 ${k > 0 ? 1 : 0} ${top}Z`;
+}
+
+const WHEEL = 0.45; // degrees an hour the stars turn through the night
+
+// Stars at fixed places in the top of the sky (spread wider than the
+// screen, so turning never leaves a gap), one of them a planet that
+// doesn't twinkle, and a moon in tonight's phase.
 function buildStars() {
-  const sky = document.querySelector('.sky-stars');
+  const sky = skyStars;
   if (!sky) return;
-  const out = ['<span class="moon"></span>'];
-  for (let i = 0; i < 46; i += 1) {
-    const x = (wobble(i * 3.7) + 0.5) * 100;
+  const phase = moonPhase();
+  const lit = (1 - Math.cos(2 * Math.PI * phase)) / 2;
+  sky.style.setProperty('--moon-lit', lit.toFixed(3));
+  const out = [`<span class="moon" data-phase="${phase.toFixed(3)}"><svg viewBox="0 0 30 30">`
+    + `<circle class="moon__dark" cx="15" cy="15" r="14.5" /><path class="moon__lit" d="${moonLit(phase)}" /></svg></span>`];
+  for (let i = 0; i < 58; i += 1) {
+    const x = -15 + (wobble(i * 3.7) + 0.5) * 130;
     const y = (wobble(i * 5.3) + 0.5) * 100;
     const size = 1 + 1.6 * (wobble(i * 8.9) + 0.5);
-    out.push(`<i style="left: ${x.toFixed(2)}%; top: ${y.toFixed(2)}%; --s: ${size.toFixed(2)}px; --d: ${(2 + 3 * (wobble(i * 2.9) + 0.5)).toFixed(2)}s; --delay: -${(i * 0.37).toFixed(2)}s"></i>`);
+    out.push(`<i style="--x: ${x.toFixed(2)}; --y: ${y.toFixed(2)}; --s: ${size.toFixed(2)}px; --d: ${(2 + 3 * (wobble(i * 2.9) + 0.5)).toFixed(2)}s; --delay: -${(i * 0.37).toFixed(2)}s"></i>`);
   }
+  out.push('<i class="is-planet" style="--x: 63; --y: 38; --s: 3.4px"></i>');
   sky.innerHTML = out.join('');
+  buildGalaxy();
+}
+
+// The Milky Way: a soft band from low on the left to high on the right,
+// dusted with faint stars thickest along its middle, with a dark lane
+// through it.
+function buildGalaxy() {
+  if (!skyGalaxy) return;
+  const along = (x) => 360 - 300 * ((x + 100) / 1800);
+  const dots = [];
+  for (let i = 0; i < 320; i += 1) {
+    const x = -100 + 1800 * (wobble(i * 1.73) + 0.5);
+    const across = (wobble(i * 3.11) + wobble(i * 5.37) + wobble(i * 7.91)) * 80;
+    if (Math.abs(across - 10 * Math.sin(x / 90)) < 7) continue; // the dust lane
+    const r = 0.5 + 0.9 * (wobble(i * 9.3) + 0.5);
+    dots.push(`<circle cx="${x.toFixed(1)}" cy="${(along(x) + across).toFixed(1)}" r="${r.toFixed(2)}" opacity="${(0.45 + 0.5 * (wobble(i * 2.2) + 0.5)).toFixed(2)}" />`);
+  }
+  const band = (width) => `M-100 ${along(-100) - width}L1700 ${along(1700) - width}L1700 ${along(1700) + width}L-100 ${along(-100) + width}Z`;
+  skyGalaxy.innerHTML = `<svg viewBox="0 0 1600 400" preserveAspectRatio="xMidYMid slice">`
+    + '<defs><filter id="galaxy-soft" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="26" /></filter></defs>'
+    + `<path class="sky-galaxy__glow" d="${band(70)}" filter="url(#galaxy-soft)" /><path class="sky-galaxy__core" d="${band(26)}" filter="url(#galaxy-soft)" />`
+    + `<g class="sky-galaxy__dust">${dots.join('')}</g></svg>`;
+}
+
+/* The ridges: three hill lines behind the world, the furthest palest and
+   slowest, so the world has depth. Each is a strip of SVG a little longer
+   than the screen whose outline repeats every `tile` px, moved at `k` of
+   the camera's speed, the way the mist is. Drawn under the wash, so the
+   time of day tints them as it does the scenery. */
+const RIDGES = [
+  // of the camera's speed, how long before it repeats (units), its paper,
+  // how high it sits and swells (units above the floor), a seed, and how
+  // many small trees stand on it
+  { k: 0.12, tile: 3200, fill: '#ece9e2', base: 300, swell: 110, seed: 1, trees: 0 },
+  { k: 0.24, tile: 2600, fill: '#e3e0d8', base: 190, swell: 80, seed: 2, trees: 5 },
+  { k: 0.42, tile: 2000, fill: '#dad6cd', base: 105, swell: 55, seed: 3, trees: 9 },
+];
+const ridges = { built: '', els: [], shown: [] };
+
+// Where a ridge's top is, `x` px along a repeat `tile` px long, in px above
+// the floor: a few sines that each fit the repeat, so it joins up.
+function ridgeHeight(ridge, x, tile, unit) {
+  const a = (2 * Math.PI * x) / tile;
+  const s = ridge.seed;
+  return unit * (ridge.base + ridge.swell * (0.55 * Math.sin(2 * a + s) + 0.3 * Math.sin(5 * a + 3 * s) + 0.15 * Math.sin(11 * a + 7 * s)));
+}
+
+function buildRidges() {
+  const unit = view.unit;
+  const key = `${unit.toFixed(4)}|${sceneWidth}`;
+  if (!skyRidges || !sceneWidth || key === ridges.built) return;
+  ridges.built = key;
+  ridges.els = RIDGES.map((ridge) => {
+    // At least as long as the screen, so one repeat always covers it.
+    const tile = Math.max(ridge.tile * unit, sceneWidth + 120);
+    const width = tile + sceneWidth + 40;
+    const top = (ridge.base + ridge.swell + 40) * unit;
+    let d = `M0 ${top.toFixed(1)}`;
+    for (let x = 0; x <= width; x += 12) d += `L${x} ${(top - ridgeHeight(ridge, x, tile, unit)).toFixed(1)}`;
+    d += `L${width} ${top.toFixed(1)}Z`;
+    // Small pines along the nearer ridges' tops, repeating with them.
+    let trees = '';
+    for (let i = 0; i < ridge.trees; i += 1) {
+      const x0 = (wobble(ridge.seed * 17 + i * 3.1) + 0.5) * tile;
+      const h = (16 + 10 * (wobble(i * 7.3 + ridge.seed) + 0.5)) * unit * (ridge.k * 2.2);
+      for (const x of [x0, x0 + tile]) {
+        if (x > width) continue;
+        const y = top - ridgeHeight(ridge, x, tile, unit) + 2;
+        trees += `M${(x - h * 0.28).toFixed(1)} ${y.toFixed(1)}L${x.toFixed(1)} ${(y - h).toFixed(1)}L${(x + h * 0.28).toFixed(1)} ${y.toFixed(1)}Z`;
+      }
+    }
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'sky-ridge');
+    svg.setAttribute('viewBox', `0 0 ${width.toFixed(0)} ${top.toFixed(0)}`);
+    svg.setAttribute('width', width.toFixed(0));
+    svg.setAttribute('height', top.toFixed(0));
+    svg.innerHTML = `<path class="sky-ridge__hill" style="fill: ${ridge.fill}" d="${d}" />${trees ? `<path class="sky-ridge__trees" style="fill: ${ridge.fill}" d="${trees}" />` : ''}`;
+    return { ridge, svg, tile, top };
+  });
+  skyRidges.replaceChildren(...ridges.els.map((r) => r.svg));
+  ridges.shown = [];
+}
+
+// Each frame, after the world has moved: each ridge slid along at its
+// fraction of the camera's speed, its foot on the floor line.
+function moveRidges() {
+  buildRidges();
+  const floor = floorY + view.rise;
+  ridges.els.forEach(({ ridge, svg, tile, top }, i) => {
+    const along = view.renderX * ridge.k - view.shift * ridge.k;
+    const x = -((((along % tile) + tile) % tile) + 20);
+    const shown = `translate3d(${x.toFixed(1)}px, ${(floor - top + 1).toFixed(1)}px, 0)`;
+    if (ridges.shown[i] === shown) return;
+    ridges.shown[i] = shown;
+    svg.style.transform = shown;
+  });
 }
 
 // Up after midnight, the first time he is standing about, he says so; once
@@ -2340,7 +2642,7 @@ function updateLateNight() {
    the trees by day, a chorus of them at dawn; crickets at night; and the
    fire louder in the dark (script.js asks fireLoudness). */
 
-const chorus = { birdsAt: 0, cricketsAt: 0 };
+const chorus = { birdsAt: 0, cricketsAt: 0, hush: 1 }; // hush: how loud the crickets are let be
 
 // How many birds are singing at `hour`, 0 to 1: all of them at dawn, a few
 // through the day, none at night.
@@ -2379,27 +2681,13 @@ function cricketChirp(pitch, vol) {
   for (let i = 0; i < 3; i += 1) sfx.tone(pitch, { vol, dur: 0.028, at: i * 0.052, attack: 0.004 });
 }
 
-// Each frame (livingView): a bird now and then, the crickets on and off.
-function updateChorus(now) {
-  if (!sfx.live) {
-    chorus.birdsAt = 0;
-    chorus.cricketsAt = 0;
-    return;
-  }
+// Each frame (livingView): crossfade natural birds and crickets with the sky.
+function updateChorus() {
   const hour = wrapHour(skyClock.hour);
   const birds = birdsong(hour);
-  const nextBird = () => now + (1200 + 5000 * Math.random()) / birds;
-  if (birds > 0.02 && now >= chorus.birdsAt) {
-    if (chorus.birdsAt) birdPhrase();
-    chorus.birdsAt = nextBird();
-  } else if (birds > 0.02 && chorus.birdsAt - now > 6200 / birds) {
-    chorus.birdsAt = nextBird(); // more of them now: one sooner
-  }
-  const loud = crickets(hour);
-  if (loud > 0.02 && now >= chorus.cricketsAt) {
-    if (chorus.cricketsAt) cricketChirp(Math.random() < 0.5 ? 4400 : 4850, 0.007 * loud);
-    chorus.cricketsAt = now + 450 + 700 * Math.random();
-  }
+  const night = crickets(hour);
+  sfx.ambient?.('birdsAmbience', 0.3 * birds);
+  sfx.ambient?.('nightAmbience', 0.2 * night * chorus.hush);
 }
 
 // How much louder the fire is at the hour the sky shows: half as loud
@@ -2503,7 +2791,7 @@ function updateAway() {
 const CONTACT = {
   email: 'naeembrown544@gmail.com',
   linkedin: 'linkedin.com/in/naeembrown544',
-  github: '',
+  github: 'github.com/NaeemBrown',
 };
 
 const termInput = document.querySelector('.term-input');
@@ -2677,13 +2965,15 @@ const TERM_COMMANDS = {
       cd: 'cd <place|..>: walks the stickman to about, projects, experience, or skills (or walks away)',
       tree: 'tree: visual directory hierarchy of the portfolio',
       skills: 'skills [show <1-5|slug>]: lists or selects skill categories on the monitor',
-      projects: 'projects: lists featured infrastructure engineering projects',
+      projects: 'projects: lists the featured projects',
       experience: 'experience: displays career milestones and work history',
       resume: 'resume: summarizes professional background, roles, and technical domains',
       contact: 'contact: outputs contact email and LinkedIn profiles',
       ping: 'ping <host>: sends ICMP echo packets (try "ping naeem")',
       neofetch: 'neofetch: draws ASCII stickman art with system and portfolio specs',
       incidents: 'incidents: logs security alerts and sudo violations (alias: journalctl)',
+      found: 'found: lists the things out in the world you have clicked, and how many are left (also ls found)',
+      wishes: 'wishes: counts the wishes made on shooting stars',
       top: 'top: simulated live process monitor (alias: htop, ps)',
       uname: 'uname: prints operating system and kernel version',
       pwd: 'pwd: prints current working directory',
@@ -2713,6 +3003,7 @@ const TERM_COMMANDS = {
       '  profile:      whoami  neofetch  resume  contact  ping',
       '  system:       uptime  date  time  top  uname  pwd  history',
       '  diagnostics:  df  free  hostname  id  incidents',
+      '  the world:    found  wishes',
       '  terminal:     clear  reboot  exit  forget  replay',
       '  easter eggs:  sudo  rm  coffee  weather  matrix  vim  nano',
       ['e.g. cat about.txt · ping naeem · time dusk · sudo · coffee', 'dim'],
@@ -2790,12 +3081,13 @@ const TERM_COMMANDS = {
     }
     if (file === 'resume.txt' || file === 'resume') {
       return termSay([
-        'Naeem Brown — UX Designer, Web & Systems Engineer',
+        'Naeem Brown, UX Designer & Web Developer',
         'Experience:',
-        '  • Systems Engineer · Pet Plus (2025 – Present)',
-        '  • Infrastructure Engineer · Pet Plus (2022 – 2025)',
-        '  • Web & UI/UX Developer · Freelance (2020 – Present)',
+        '  • Systems Engineer · Pet Plus (2025 - Present)',
+        '  • Infrastructure Engineer · Pet Plus (2022 - 2025)',
+        '  • Web & UI/UX Developer · Freelance (2020 - Present)',
         'Contact: naeembrown544@gmail.com',
+        ['the full CV (PDF) is linked at the foot of the About letter', 'dim'],
       ]);
     }
     if (['projects', 'projects/', 'skills', 'skills/'].includes(file)) return termSay(`cat: ${file.replace(/\/$/, '')}: Is a directory`, { kind: 'err' });
@@ -2883,7 +3175,7 @@ const TERM_COMMANDS = {
   incidents: () => {
     const list = memory.data.incidents.slice(-6);
     if (!list.length) return termSay('no incidents on record. all systems nominal.');
-    termSay(list.map((i) => `${termClock(i.at)}  ${i.id.padEnd(8)} ${i.secs == null ? 'reported' : `fixed in ${i.secs.toFixed(1)} s`}`));
+    termSay(list.map((i) => `${termClock(i.at)}  ${i.id.padEnd(8)} ${i.secs == null ? 'reported' : `fixed in ${i.secs.toFixed(1)} s`}${i.by === 'you' ? ' · broken by you' : ''}`));
     termSay(`${memory.data.fixed} fixed so far`, { kind: 'dim' });
   },
 
@@ -2892,7 +3184,7 @@ const TERM_COMMANDS = {
     const facts = [
       'guest@infra',
       `OS: NB-OS 2.6 · Host: Naeem Brown`,
-      'Role: Systems & Infrastructure Eng.',
+      'Role: UX Designer & Web Developer',
       `Uptime: ${termDuration(performance.now())}`,
       'Shell: bash · Skills: 5 groups',
       `Theme: ${livingDaypartName()}`,
@@ -2975,9 +3267,9 @@ const TERM_COMMANDS = {
   experience: (args) => {
     if (args[0] === 'go' || args[0] === 'cd') return TERM_COMMANDS.cd(['experience']);
     termSay([
-      'career timetable:',
+      BOARD_MODE ? 'career so far:' : 'career timetable:',
       ...[...CAREER].reverse().map((c) => `  ${c.dates.padEnd(16)} ${c.title.join(' ')}`),
-      ['type "cd experience" to walk over to the line', 'dim'],
+      ['type "cd experience" to walk over to the ' + (BOARD_MODE ? 'chalkboard' : 'line'), 'dim'],
     ]);
   },
 
@@ -2987,14 +3279,15 @@ const TERM_COMMANDS = {
   },
 
   resume: () => termSay([
-    'Naeem Brown — UX Designer, Web & Systems Engineer',
+    'Naeem Brown, UX Designer & Web Developer',
     'Career Highlights:',
-    '  • Systems Engineer · Pet Plus (2025 – Present)',
-    '  • Infrastructure Engineer · Pet Plus (2022 – 2025)',
+    '  • Systems Engineer · Pet Plus (2025 - Present)',
+    '  • Infrastructure Engineer · Pet Plus (2022 - 2025)',
     'Core Domains:',
-    '  • Web & UI/UX Developer · Freelance (2020 – Present)',
+    '  • Web & UI/UX Developer · Freelance (2020 - Present)',
     '  • Custom Interfaces · Web Dev · Systems & POS Integration',
     ['type "cat experience.log" or "contact" for more details', 'dim'],
+    ['the full CV (PDF) is linked at the foot of the About letter', 'dim'],
   ]),
 
   reboot: () => {
@@ -3364,7 +3657,9 @@ function hushTermNudge() {
 window.alive = {
   memory,
   returning,
+  finale: { show: livingFinaleOpen, hide: livingFinaleClose },
   ambient,
+  get chalk() { return CHALKBOARD.debug; }, // the Experience chalkboard's show (chalkboard.js, loaded after this)
   isFree: () => isFree(),
   forget: () => memory.forget(),
   idle,
@@ -3388,18 +3683,35 @@ window.alive = {
     startIncident(id);
     return true;
   },
-  // Starts one of his idle acts now: look, stretch, phone, kick, yawn, settle.
+  // Starts one of his idle acts now: look, stretch, phone, kick, yawn,
+  // settle, or any of the daypart idles by name (idles.js, IDLE_ACTS),
+  // whatever the hour and wherever he is.
   forceIdle(kind) {
-    const make = { look: lookAct, stretch: stretchAct, phone: phoneAct, kick: kickAct, yawn: yawnAct, settle: settleAct }[kind];
+    const make = { look: lookAct, stretch: stretchAct, phone: phoneAct, kick: kickAct, yawn: yawnAct, settle: settleAct }[kind]
+      || IDLE_ACTS[kind]?.make;
+    if (!make) return false;
+    cancelAmbient();
     idle.last = kind;
     startAct(make());
+    return true;
   },
+  // The daypart idles (idles.js): their names by part of the day.
+  get idles() { return idleCatalogue(); },
   // Pretends the tab was hidden for `seconds` and has just come back.
   simulateAway(seconds) {
     away.pending = seconds * 1000;
   },
   sky: skyClock,
   lamps,
+  get teleport() { return teleport; }, // teleports.js, loaded after this
+  // Double taps place `i` on the navbar (0 About Me to 3 Skills), going by
+  // `move` (a key of TELEPORT_MOVES in teleports.js) if given.
+  teleportTo(i, move = null) {
+    teleport.force = move;
+    buttons[i].click();
+    buttons[i].click();
+  },
+  teleportMoves: () => Object.keys(TELEPORT_MOVES),
   runMove,
   runStats,
   // Plays one of the run flares next (pace, coffee, stumble, or script.js's

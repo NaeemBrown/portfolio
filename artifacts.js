@@ -78,8 +78,9 @@ function poiArtifactBuild() {
 
   // EXPERIENCE: the wayfinder stands at today's stop, where the handcar and
   // the character come to rest rather than back at the route's beginning.
+  // The chalkboard has no line, so no wayfinder (chalkboard.js).
   const experienceStop = LINE.stops[LINE.stops.length - 1];
-  poiArtifactRoots.experience = worldSet('set--poi-artifact set--artifact-experience', experienceX,
+  if (!BOARD_MODE) poiArtifactRoots.experience = worldSet('set--poi-artifact set--artifact-experience', experienceX,
     experienceStop + 30, experienceStop + 164, 242, (p) => {
       const x = experienceStop + 96;
       p.line('artifact-stand', [[x - 42, 0], [x - 35, 174]], [[x + 42, 0], [x + 35, 174]]);

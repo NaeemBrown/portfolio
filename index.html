@@ -4,19 +4,69 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#e4e4e2" />
-    <title>Portfolio Map</title>
+    <title>Naeem Brown · UX Designer &amp; Web Developer</title>
+    <meta name="description" content="I’m Naeem Brown, a UX designer and web developer. Walk around my portfolio world to see my projects, experience and skills." />
+    <!-- How a shared link looks. Keep these on the live URL until a custom
+         domain is connected, then change the three absolute URLs together. -->
+    <link rel="canonical" href="https://naeem-portfolio.vercel.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Naeem Brown Portfolio" />
+    <meta property="og:url" content="https://naeem-portfolio.vercel.app/" />
+    <meta property="og:image" content="https://naeem-portfolio.vercel.app/og-image.png" />
+    <meta property="og:title" content="Naeem Brown · UX Designer &amp; Web Developer" />
+    <meta property="og:description" content="I’m Naeem Brown, a UX designer and web developer. Walk around my portfolio world to see my projects, experience and skills." />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The name Naeem Brown in large drawn letters on a plinth, a stick figure standing between the words, over the line UX Designer &amp; Web Developer." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Naeem Brown · UX Designer &amp; Web Developer" />
+    <meta name="twitter:description" content="Walk around Naeem Brown’s interactive portfolio world to see his projects, experience and skills." />
+    <meta name="twitter:image" content="https://naeem-portfolio.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="The name Naeem Brown in large drawn letters on a plinth, with a stick figure standing between the words." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2320201f'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="styles.css" />
+    <script>
+      // One clean start for this release: discard the site's own saved state
+      // before the deferred application scripts read it. The release marker
+      // keeps this from resetting the same visitor on every page load.
+      (() => {
+        const release = '20260926-clean-1';
+        const marker = 'cv_release';
+        try {
+          if (localStorage.getItem(marker) === release) return;
+          localStorage.removeItem('cv_memory_v1');
+          localStorage.removeItem('cv_sound_enabled');
+          sessionStorage.clear();
+          localStorage.setItem(marker, release);
+          if ('caches' in window) {
+            caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))).catch(() => {});
+          }
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((items) => items.forEach((item) => item.unregister())).catch(() => {});
+          }
+        } catch { /* Storage can be unavailable in private/restricted browsing. */ }
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260926-clean-1" />
     <!-- living: the living world, see HANDOFF-living-world.md. living.js
          must load before script.js. -->
-    <link rel="stylesheet" href="living.css" />
-    <link rel="stylesheet" href="artifacts.css" />
-    <link rel="stylesheet" href="entrance-variants.css" />
-    <script src="gaits.js" defer></script>
-    <script src="living.js" defer></script>
-    <script src="artifacts.js" defer></script>
-    <script src="script.js" defer></script>
-    <script src="entrance-variants.js" defer></script>
+    <link rel="stylesheet" href="living.css?v=20260926-perf-2" />
+    <link rel="stylesheet" href="artifacts.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="entrance-variants.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="case.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="chalkboard.css?v=20260926-perf-1" />
+    <link rel="stylesheet" href="teleports.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="clickables.css?v=20260926-finish-1" />
+    <link rel="stylesheet" href="idles.css?v=20260926-idles-1" />
+    <script src="gaits.js?v=20260926-clean-1" defer></script>
+    <script src="living.js?v=20260926-perf-2" defer></script>
+    <script src="teleports.js?v=20260926-clean-1" defer></script>
+    <script src="clickables.js?v=20260926-finish-1" defer></script>
+    <script src="idles.js?v=20260926-idles-1" defer></script>
+    <script src="artifacts.js?v=20260926-clean-1" defer></script>
+    <script src="chalkboard.js?v=20260927-audio-1" defer></script>
+    <script src="script.js?v=20260927-audio-1" defer></script>
+    <script src="case.js?v=20260926-clean-1" defer></script>
+    <script src="entrance-variants.js?v=20260926-clean-1" defer></script>
   </head>
   <body>
     <header class="navbar">
@@ -84,13 +134,19 @@
 
     <main class="scene" aria-label="Interactive portfolio map">
       <div class="spotlight" aria-hidden="true"></div>
-      <!-- living: stars and a moon, out at night, behind everything (living.js) -->
+      <!-- living: the Milky Way, faint across the night sky, and stars and a
+           moon in tonight's phase, out at night (living.js) -->
+      <div class="sky-galaxy" aria-hidden="true"></div>
       <div class="sky-stars" aria-hidden="true"></div>
+      <button class="click-star-access" type="button" hidden disabled>Make a wish on a shooting star</button>
       <!-- living: the sun, behind the world, cut off at the floor line so it
            rises and sets behind it (living.js) -->
       <div class="sky-sun" aria-hidden="true"><i class="sky-sun__disc"></i></div>
+      <!-- living: hills behind the world, each further one paler and slower
+           (living.js, the ridges) -->
+      <div class="sky-ridges" aria-hidden="true"></div>
 
-      <div class="world" aria-hidden="true">
+      <div class="world" role="group" aria-label="Interactive scenery">
         <div class="floor"></div>
         <div class="ground"></div>
         <!-- His name as a statue, where the site opens. script.js carves it. -->
@@ -154,21 +210,23 @@
              rides it by (or the rooftop tower, with ?experience=tower). -->
         <svg class="experience-course-world" aria-hidden="true"></svg>
 
+        <!-- Each stop's mark on the floor. Near one, its label lights up into
+             a prompt to use it, by E or a click (script.js, useStop). -->
         <div class="poi is-active" data-marker="about" style="--poi-x: 4900px">
           <span class="poi__dot"></span>
-          <span class="poi__label">About Me</span>
+          <button type="button" class="poi__label" tabindex="-1"><kbd class="poi__key">E</kbd>About Me</button>
         </div>
         <div class="poi" data-marker="projects" style="--poi-x: 6000px">
           <span class="poi__dot"></span>
-          <span class="poi__label">Projects</span>
+          <button type="button" class="poi__label" tabindex="-1"><kbd class="poi__key">E</kbd>Projects</button>
         </div>
         <div class="poi" data-marker="experience" style="--poi-x: 7100px">
           <span class="poi__dot"></span>
-          <span class="poi__label">Experience</span>
+          <button type="button" class="poi__label" tabindex="-1"><kbd class="poi__key">E</kbd>Experience</button>
         </div>
         <div class="poi" data-marker="skills" style="--poi-x: 9400px">
           <span class="poi__dot"></span>
-          <span class="poi__label">Skills</span>
+          <button type="button" class="poi__label" tabindex="-1"><kbd class="poi__key">E</kbd>Skills</button>
         </div>
 
       </div>
@@ -206,6 +264,11 @@
         <g class="term-cam__model"></g>
       </svg>
 
+      <!-- The Experience chalkboard, drawn by chalkboard.js through a camera
+           that is the side-on world as he walks past, and moves round him
+           while he writes on it. -->
+      <svg class="bench-cam chalk-cam" aria-hidden="true" hidden></svg>
+
       <svg
         class="figure"
         viewBox="0 0 140 242"
@@ -228,6 +291,23 @@
           </linearGradient>
         </defs>
         <g class="rig">
+          <!-- living: his ki as he teleports, short strokes flickering up
+               round him (living.js, teleporting). -->
+          <g class="prop-aura" opacity="0">
+            <path d="M26 232V196" style="--d: 0s" />
+            <path d="M36 170V132" style="--d: -0.28s" />
+            <path d="M24 128V100" style="--d: -0.12s" />
+            <path d="M40 92V64" style="--d: -0.35s" />
+            <path d="M30 56V34" style="--d: -0.2s" />
+            <path d="M114 232V200" style="--d: -0.06s" />
+            <path d="M104 176V140" style="--d: -0.31s" />
+            <path d="M118 132V104" style="--d: -0.17s" />
+            <path d="M112 86V60" style="--d: -0.38s" />
+            <path d="M104 40V18" style="--d: -0.09s" />
+            <path d="M58 2V-22" style="--d: -0.24s" />
+            <path d="M84 0V-26" style="--d: -0.14s" />
+            <path d="M71 -12V-40" style="--d: -0.33s" />
+          </g>
           <g class="leg leg--far">
             <g class="leg__thigh">
               <path d="M70 144V194" />
@@ -272,6 +352,14 @@
                     <circle cx="74.5" cy="142.3" r="0.35" class="prop-smore__dot" />
                     <rect class="prop-smore__choc" x="64" y="139" width="12" height="2" rx="0.4" />
                     <line x1="65" y1="139.6" x2="74" y2="139.6" class="prop-smore__choc-shine" />
+                  </g>
+                  <!-- living: a pad of sticky notes in his far hand while he
+                       sketches on it (idles.js). -->
+                  <g class="prop-idle-far" opacity="0">
+                    <g data-prop="pad">
+                      <rect class="prop-idle__note" x="57" y="130" width="26" height="20" rx="1" />
+                      <path class="prop-idle__thin" d="M57 134h26" />
+                    </g>
                   </g>
                 </g>
               </g>
@@ -326,6 +414,23 @@
                 <path class="prop-headband__tails" d="M48 26Q39 24 29 25M48 29Q40 31 31 35" />
                 <path class="prop-headband__band" d="M48.2 26.2Q70 20.5 91.8 24.8" />
               </g>
+
+              <!-- living: for the daypart idles (idles.js): a head torch,
+                   toothpaste foam, and a sticky note stuck on his chest. -->
+              <g class="prop-headtorch" opacity="0">
+                <path class="prop-headtorch__band" d="M48.4 21.5Q70 13.5 91.6 19" />
+                <rect class="prop-headtorch__lamp" x="85" y="10.5" width="10" height="9" rx="2.4" />
+                <circle class="prop-headtorch__lens" cx="93.2" cy="15" r="2.6" />
+              </g>
+              <g class="prop-foam" opacity="0">
+                <circle cx="92.5" cy="45.5" r="2.3" />
+                <circle cx="96" cy="49" r="1.8" />
+                <circle cx="90.5" cy="50" r="2" />
+                <circle cx="96.5" cy="43.5" r="1.5" />
+              </g>
+              <g class="prop-chestnote" opacity="0">
+                <rect x="73" y="86" width="15" height="15" rx="0.8" transform="rotate(8 80.5 93.5)" />
+              </g>
             </g>
 
             <g class="arm arm--near">
@@ -345,11 +450,21 @@
                     <rect x="67" y="144" width="6" height="5" rx="1" fill="#0369a1" />
                     <circle id="drink-stream" cx="70" cy="151" r="1.5" fill="#38bdf8" opacity="0" />
                   </g>
+                  <!-- living: two fingers out, to his forehead to teleport
+                       (living.js, teleporting). -->
+                  <g class="prop-fingers" opacity="0">
+                    <path d="M69 143L67.5 152M71.5 143L73.5 151.5" />
+                  </g>
                   <!-- living: his phone, checked while he waits and buzzing
                        when something breaks (living.js). -->
                   <g class="prop-phone" opacity="0">
                     <rect class="prop-phone__body" x="66.2" y="135" width="7.6" height="13" rx="1.8" />
                     <rect class="prop-phone__screen" x="67.4" y="136.6" width="5.2" height="9" rx="0.7" />
+                    <!-- living: what the screen shows in the daypart idles
+                         (idles.js): do not disturb, muted, a page. -->
+                    <path class="prop-phone__glyph prop-phone__glyph--dnd" d="M70.9 138.9a2.3 2.3 0 1 0 1.3 3.6a1.8 1.8 0 0 1 -1.3 -3.6z" />
+                    <path class="prop-phone__glyph prop-phone__glyph--mute" d="M70 138.6v2.6M68.8 140.6a1.2 1.2 0 0 0 2.4 0M68.4 138.4l3.2 4.4" />
+                    <path class="prop-phone__glyph prop-phone__glyph--page" d="M70 138.4v3M70 143.2v0.2" />
                   </g>
                   <!-- living: a watch, checked on the run, and a mug of coffee
                        carried level on a morning run (living.js, on the run).
@@ -367,6 +482,88 @@
                     <path class="prop-mug__handle" d="M76.6 131.2q5.8 0 5.8 4.6t-5.8 4.6" />
                     <rect class="prop-mug__body" x="63.4" y="127.5" width="13.2" height="15" rx="2.6" />
                     <path class="prop-mug__coffee" d="M65.4 130.6H74.6" />
+                  </g>
+                  <!-- living: the axe he splits a log with, and a tool off
+                       the pegboard, each drawn as the scenery draws it with
+                       its grip in his hand (clickables.js turns them). -->
+                  <g class="prop-axe" opacity="0">
+                    <path class="prop-axe__handle" d="M70 152V86" />
+                    <path class="prop-axe__head" d="M64 84L78 84L90 78L90 102L78 96L64 96Z" />
+                  </g>
+                  <g class="prop-tool" opacity="0">
+                    <g data-prop="hammer">
+                      <path class="prop-tool__handle" d="M70 167V85" />
+                      <path class="prop-tool__metal" d="M52 85H86L92 77L86 71H52Z" />
+                    </g>
+                    <g data-prop="spanner">
+                      <path class="prop-tool__handle" d="M66.8 155L84.8 81" />
+                      <circle class="prop-tool__body" cx="86.8" cy="73" r="9" />
+                      <circle class="prop-tool__thin" cx="86.8" cy="73" r="3" />
+                    </g>
+                    <g data-prop="level">
+                      <rect class="prop-tool__body" x="27" y="136" width="86" height="12" rx="2" />
+                      <rect class="prop-tool__vial" x="65" y="139" width="10" height="6" rx="2" />
+                      <circle class="prop-tool__bubble" cx="70" cy="142" r="1.8" />
+                    </g>
+                    <g data-prop="saw">
+                      <path class="prop-tool__body" d="M82 120L148 126L148 134L82 142Z" />
+                      <path class="prop-tool__thin" d="M90 141L146 134" />
+                      <rect class="prop-tool__body" x="58" y="116" width="24" height="28" rx="5" />
+                    </g>
+                  </g>
+                  <!-- living: what he holds in the daypart idles, one at a
+                       time, each drawn upright with its grip at his hand
+                       and turned about it as the tools are (idles.js). -->
+                  <g class="prop-idle" opacity="0">
+                    <g data-prop="toothbrush">
+                      <path class="prop-idle__stick" d="M70 147V114" />
+                      <rect class="prop-idle__white" x="66.4" y="102" width="7.2" height="13" rx="2.2" />
+                      <path class="prop-idle__thin" d="M68.6 104.5v8M71.4 104.5v8" />
+                    </g>
+                    <g data-prop="bottle">
+                      <rect class="prop-idle__bottle" x="63" y="113" width="14" height="30" rx="3.5" />
+                      <rect class="prop-idle__cap" x="66.5" y="106.5" width="7" height="7" rx="1.2" />
+                    </g>
+                    <g data-prop="duck">
+                      <path class="prop-idle__duck" d="M82 128l6 -7l-1 10z" />
+                      <ellipse class="prop-idle__duck" cx="71" cy="132" rx="12.5" ry="8.5" />
+                      <circle class="prop-idle__duck" cx="61.5" cy="118.5" r="7.2" />
+                      <path class="prop-idle__beak" d="M54.8 117l-6.6 2.2l6.6 2.4z" />
+                      <circle class="prop-idle__eye" cx="59.6" cy="116.6" r="1.2" />
+                      <path class="prop-idle__thin" d="M67 131q6 -4 12 0" />
+                    </g>
+                    <g data-prop="pen">
+                      <rect class="prop-idle__dark" x="67.6" y="118" width="4.8" height="30" rx="1.6" />
+                      <path class="prop-idle__dark" d="M67.6 118L70 111L72.4 118Z" />
+                    </g>
+                    <g data-prop="note">
+                      <rect class="prop-idle__note" x="59" y="114" width="22" height="22" rx="1" />
+                      <path class="prop-idle__thin" d="M62.5 119h15M62.5 124.5h10M62.5 130h13" />
+                    </g>
+                    <g data-prop="ball">
+                      <circle class="prop-idle__note" cx="70" cy="135" r="7.5" />
+                      <path class="prop-idle__thin" d="M66 131.5l3.5 3l-1.5 4.5M71.5 132l2.5 3.5" />
+                    </g>
+                    <g data-prop="sheet">
+                      <rect class="prop-idle__paper" x="55" y="116" width="30" height="22" rx="0.8" />
+                      <path class="prop-idle__thin" d="M70 116v22" />
+                    </g>
+                    <g data-prop="plane">
+                      <path class="prop-idle__paper" d="M94 134L50 124L62 134L50 145Z" />
+                      <path class="prop-idle__thin" d="M94 134H62" />
+                    </g>
+                    <g data-prop="sandwich">
+                      <path class="prop-idle__bread" d="M54 142H86L70 118Z" />
+                      <path class="prop-idle__filling" d="M58 138H82" />
+                    </g>
+                    <g data-prop="harmonica">
+                      <rect class="prop-idle__metal" x="55" y="136" width="30" height="9" rx="2" />
+                      <path class="prop-idle__thin" d="M59 139.5h22M60 142.5h2M65 142.5h2M70 142.5h2M75 142.5h2M80 142.5h2" />
+                    </g>
+                    <g data-prop="longstick">
+                      <path class="prop-idle__wood" d="M70 146V276" />
+                      <rect class="prop-idle__mallow" x="63.5" y="264" width="13" height="15" rx="4.5" />
+                    </g>
                   </g>
                   <g class="campfire-props">
                     <g class="prop-stick" opacity="0">
@@ -430,7 +627,10 @@
           <!-- The laptop he codes on at the start, placed by script.js, drawn a
                little turned towards you. Its keyboard runs across the deck;
                the lid is drawn in a unit square that script.js maps onto the
-               hinge, so it can open and close. -->
+               hinge, so it can open and close. Its screen faces him, so from
+               here you see the back of the lid, lit round its edges; what is
+               on the screen shows once the camera comes round behind him
+               (.lap-cam). -->
           <g class="laptop" hidden>
             <defs>
               <radialGradient id="laptop-halo">
@@ -446,16 +646,7 @@
             <g class="laptop__lid">
               <path class="laptop__halo" d="M-0.4 -0.2H1.4V1.25H-0.4Z" fill="url(#laptop-halo)" />
               <path class="laptop__back" d="M0 0H1V1H0Z" />
-              <g class="laptop__face">
-                <path class="laptop__bezel" d="M0 0H1V1H0Z" />
-                <path class="laptop__screen" d="M0.08 0.09H0.92V0.92H0.08Z" />
-                <path class="laptop__code laptop__code--comment" d="M0.16 0.83H0.66" />
-                <path class="laptop__code laptop__code--selector" d="M0.16 0.72H0.8" />
-                <path class="laptop__code laptop__code--property" d="M0.26 0.61H0.68" />
-                <path class="laptop__code laptop__code--property" d="M0.26 0.5H0.74" />
-                <path class="laptop__code laptop__code--property" d="M0.26 0.39H0.7" />
-                <path class="laptop__code laptop__code--selector" d="M0.16 0.28H0.24" />
-              </g>
+              <path class="laptop__mark" d="M0.5 0.5m-0.1 0a0.1 0.1 0 1 0 0.2 0a0.1 0.1 0 1 0 -0.2 0" />
             </g>
           </g>
         </g>
@@ -467,6 +658,70 @@
       <div class="sky-mist" aria-hidden="true" hidden><i class="sky-mist__band"></i></div>
       <div class="sky-wash" aria-hidden="true"></div>
       <div class="world-lights" aria-hidden="true"></div>
+      <!-- The light of the lamp over the Experience chalkboard, over the
+           night's wash like the street lamps' (chalkboard.js). -->
+      <svg class="chalk-glow" aria-hidden="true" hidden></svg>
+
+      <!-- The opening from behind him, while he codes on the floor: his
+           laptop in 3D, drawn by script.js through the bench's camera as it
+           comes round over his shoulder; on its screen, the laptop waking
+           and the code editor he types the site's fixes into; and him, in
+           front of the screen. -->
+      <svg class="bench-cam lap-cam" aria-hidden="true" hidden>
+        <g class="lap-cam__model"></g>
+      </svg>
+      <div class="lap-screen" aria-hidden="true" hidden>
+        <div class="lap-screen__desk">
+          <span class="lap-screen__dock"><i></i><i></i><i class="lap-screen__app">&lt;/&gt;</i><i></i></span>
+        </div>
+        <div class="vsc">
+          <div class="vsc__title"><i></i><i></i><i></i><span>portfolio</span></div>
+          <div class="vsc__body">
+            <div class="vsc__bar">
+              <svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7zM14 3v4h4" /></svg>
+              <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5 5" /></svg>
+              <svg viewBox="0 0 24 24"><circle cx="7" cy="5" r="2" /><circle cx="7" cy="19" r="2" /><circle cx="17" cy="8" r="2" /><path d="M7 7v10M17 10q0 5 -10 7" /></svg>
+              <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 13h7v7h-7zM4 13h7v7H4zM15 3l5 5l-5 5l-5 -5z" /></svg>
+            </div>
+            <div class="vsc__side">
+              <p class="vsc__label">Explorer</p>
+              <p class="vsc__folder">Portfolio</p>
+              <ul class="vsc__files">
+                <li data-file="index.html">index.html</li>
+                <li data-file="styles.css">styles.css</li>
+                <li data-file="script.js">script.js</li>
+                <li data-file="sound.js">sound.js</li>
+                <li data-file="controls.css">controls.css</li>
+                <li data-file="name.css">name.css</li>
+              </ul>
+            </div>
+            <div class="vsc__main">
+              <div class="vsc__tabs"></div>
+              <pre class="vsc__code"><code></code></pre>
+            </div>
+          </div>
+          <div class="vsc__status"><span>main</span><b>✓ applied</b><span class="vsc__where"></span><span class="vsc__lang"></span></div>
+        </div>
+      </div>
+      <svg class="bench-cam lap-figure" aria-hidden="true" hidden>
+        <g class="bench-cam__figure">
+          <g class="bench-cam__legs">
+            <path data-part="far-leg" class="is-far" />
+            <path data-part="near-leg" />
+          </g>
+          <linearGradient id="lap-spine-fade" gradientUnits="userSpaceOnUse">
+            <stop offset="0" class="bench-cam__ink-stop" />
+            <stop offset="0.3" class="bench-cam__ink-stop" />
+            <stop offset="1" class="bench-cam__ink-stop" />
+          </linearGradient>
+          <path data-part="spine" stroke="url(#lap-spine-fade)" />
+          <circle data-part="head" class="bench-cam__head" />
+          <path data-part="far-upper" class="is-far" />
+          <g data-part="far-fore" class="is-far"><path /><circle class="bench-cam__hand" /></g>
+          <path data-part="near-upper" />
+          <g data-part="near-fore"><path /><circle class="bench-cam__hand" /></g>
+        </g>
+      </svg>
 
       <aside class="intro-speech" aria-label="Welcome message">
         <svg class="intro-speech__outline" viewBox="0 0 410 112" preserveAspectRatio="none" aria-hidden="true">
@@ -481,11 +736,6 @@
         </p>
       </aside>
 
-      <!-- The editor he fixes the N in at the start, typed out by script.js. -->
-      <div class="intro-editor" aria-hidden="true" hidden>
-        <div class="intro-editor__bar"><i></i><i></i><i></i><span>name.css</span><b>✓ applied</b></div>
-        <pre class="intro-editor__code"><code></code></pre>
-      </div>
 
       <p class="sr-only" id="travel-status" aria-live="polite">Welcome</p>
       <div class="scene-panels">
@@ -496,6 +746,8 @@
               <span class="about-paper__flap about-paper__flap--bottom"></span>
               <span class="about-paper__flap about-paper__flap--top"></span>
             </div>
+            <!-- Puts the paper away, as Continue journey does (script.js). -->
+            <button type="button" class="paper-close" aria-label="Close About Me" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" /></svg></button>
             <article class="about-paper__content" data-panel-scroll>
               <header>
                 <h1 id="about-title" tabindex="-1">About Me</h1>
@@ -503,19 +755,21 @@
               </header>
               <section>
                 <h2>Background</h2>
-                <p>I’ve been deep in web development for the past three years, and that journey is what sparked my love for UI/UX. Building for the web taught me that code is only half the craft—the real magic is how an interface feels to the person using it.</p>
+                <p>I’ve been deep in web development since 2020, and that journey is what sparked my love for UI/UX. Building for the websites taught me that code is only half the job, what really matters is how the experience feels to the person using it.</p>
               </section>
               <section>
                 <h2>What drives me</h2>
-                <p>I enjoy making interfaces that are genuinely nice to look at and a pleasure to use. I’m heavily invested in the user’s experience—obsessing over ergonomics, visual harmony, and giving people customizable control over their spaces.</p>
+                <p>I enjoy making interfaces that are genuinely nice to look at and a pleasure to use. I’m heavily invested in the user’s experience and giving people customizable control over their spaces.</p>
               </section>
               <section>
                 <h2>Beyond the screen</h2>
-                <p>Besides being planted at my desk, I enjoy casual outings with friends and recently started my journey toward becoming the best tennis player to grace the Earth.</p>
+                <p>Besides being planted at my desk, I enjoy casual outings with friends and recently started my journey toward becoming the best tennis player to grace the Earth (surely).</p>
               </section>
               <section>
                 <h2>The next chapter</h2>
-                <p>Don’t just take my word for it—explore the journey ahead to check out my featured UI/UX interfaces and web development projects.</p>
+                <p>Don’t just take my word for it, please explore the journey ahead and maybe check out my featured UI/UX interfaces and web development projects.</p>
+                <p class="about-paper__cv"><a href="cv/Naeem-Brown-CV.pdf" download="Naeem-Brown-CV.pdf">Download my CV (PDF) <span aria-hidden="true">↓</span></a></p>
+                <p class="about-paper__contact">Say hello: <a href="mailto:naeembrown544@gmail.com">naeembrown544@gmail.com</a><span aria-hidden="true"> · </span><a href="https://linkedin.com/in/naeembrown544" target="_blank" rel="noopener">LinkedIn</a><span aria-hidden="true"> · </span><a href="https://github.com/NaeemBrown" target="_blank" rel="noopener">GitHub</a></p>
               </section>
               <div class="about-paper__signoff">
                 <span class="about-paper__sign-rule" aria-hidden="true"></span>
@@ -527,26 +781,32 @@
 
         <section class="story-panel projects-panel" data-scene-panel="projects" data-fold hidden aria-labelledby="projects-title">
           <div class="projects-sheet">
+            <button type="button" class="paper-close" aria-label="Close Projects" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" /></svg></button>
             <header>
               <h1 id="projects-title" tabindex="-1">Projects</h1>
               <p class="projects-sheet__intro">A few things I have built.</p>
             </header>
             <div class="project-list" role="tablist" aria-orientation="vertical" aria-label="Choose a project">
-              <button type="button" role="tab" id="project-tab-0" aria-controls="project-detail" aria-selected="true" data-project-tab="0" style="--row: 0"><span class="project-list__number">01</span><span class="project-list__name">Project 01</span></button>
-              <button type="button" role="tab" id="project-tab-1" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="1" style="--row: 1"><span class="project-list__number">02</span><span class="project-list__name">Project 02</span></button>
-              <button type="button" role="tab" id="project-tab-2" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="2" style="--row: 2"><span class="project-list__number">03</span><span class="project-list__name">Project 03</span></button>
-              <button type="button" role="tab" id="project-tab-3" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="3" style="--row: 3"><span class="project-list__number">04</span><span class="project-list__name">Project 04</span></button>
-              <button type="button" role="tab" id="project-tab-4" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="4" style="--row: 4"><span class="project-list__number">05</span><span class="project-list__name">Project 05</span></button>
+              <button type="button" role="tab" id="project-tab-0" aria-controls="project-detail" aria-selected="true" data-project-tab="0" style="--row: 0"><span class="project-list__number">01</span><span class="project-list__name">CaseMap Next Gen</span></button>
+              <button type="button" role="tab" id="project-tab-1" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="1" style="--row: 1"><span class="project-list__number">02</span><span class="project-list__name">Chiisai Games</span></button>
+              <button type="button" role="tab" id="project-tab-2" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="2" style="--row: 2"><span class="project-list__number">03</span><span class="project-list__name">TheWebsiteForge</span></button>
+              <button type="button" role="tab" id="project-tab-3" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="3" style="--row: 3"><span class="project-list__number">04</span><span class="project-list__name">PetPlus Workforce</span></button>
+              <button type="button" role="tab" id="project-tab-4" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="4" style="--row: 4"><span class="project-list__number">05</span><span class="project-list__name">Steady</span></button>
+              <button type="button" role="tab" id="project-tab-5" aria-controls="project-detail" aria-selected="false" tabindex="-1" data-project-tab="5" style="--row: 5"><span class="project-list__number">06</span><span class="project-list__name">SIN Esports</span></button>
             </div>
             <div class="project-detail" id="project-detail" role="tabpanel" aria-labelledby="project-tab-0" aria-live="polite">
-              <p class="project-label">01 of 05</p>
-              <h2>Project 01</h2>
-              <p class="project-description">A focused case study can live here: the problem, the approach, and what the finished work achieved.</p>
+              <p class="project-label">01 of 06</p>
+              <h2>CaseMap Next Gen</h2>
+              <p class="project-description">Built for LexisNexis: the next generation of CaseMap, their legal case analysis tool, as a case dashboard you arrange yourself. Drag any panel and resize it from its edges or corners, swap bars for donuts, dock the tiles and navigation to any side, and save the layout as a template for new cases. Every move works from the keyboard too. The demo runs on mock data.</p>
               <dl>
-                <div><dt>Role</dt><dd>Project role</dd></div>
-                <div><dt>Tools</dt><dd>Technology list</dd></div>
+                <div><dt>Role</dt><dd class="project-role">Design &amp; development</dd></div>
+                <div><dt>Front end</dt><dd><ul class="project-chips"><li>Angular 22</li><li>TypeScript</li><li>Standalone components</li><li>Signals</li><li>Zoneless Angular</li><li>Tailwind CSS</li><li>RxJS patterns</li><li>Electron desktop shell</li></ul></dd></div>
               </dl>
-              <a href="#" aria-label="View Project 01">View project <span aria-hidden="true">→</span></a>
+              <!-- The detailed view zooms the sheet into a whole page (case.js). -->
+              <div class="project-actions">
+                <button type="button" class="project-case" aria-label="Detailed view of CaseMap Next Gen">Detailed view <span aria-hidden="true">↗</span></button>
+                <a class="project-link" href="https://casemap-next-gen.vercel.app" target="_blank" rel="noopener" aria-label="View CaseMap Next Gen (opens in a new tab)">View project <span aria-hidden="true">→</span></a>
+              </div>
             </div>
           </div>
         </section>
@@ -562,11 +822,11 @@
             <p class="term-line term-line--dim" data-boot>UX Designer &amp; Web Developer</p>
             <p class="term-line term-line--list" aria-hidden="true"><span class="term-prompt"><span class="term-user">naeem@infra:</span>~$</span> <span class="term-typed"></span></p>
             <div class="term-list" role="tablist" aria-orientation="vertical" aria-label="Skill groups">
-            <button type="button" role="tab" id="skill-tab-0" aria-controls="skill-detail" aria-selected="true" data-skill-tab="0"><span class="term-list__key">[1]</span> Operating Systems &amp; Security</button>
-            <button type="button" role="tab" id="skill-tab-1" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="1"><span class="term-list__key">[2]</span> Networking &amp; Authentication</button>
-            <button type="button" role="tab" id="skill-tab-2" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="2"><span class="term-list__key">[3]</span> Cloud &amp; Monitoring</button>
-            <button type="button" role="tab" id="skill-tab-3" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="3"><span class="term-list__key">[4]</span> Collaboration &amp; Tools</button>
-            <button type="button" role="tab" id="skill-tab-4" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="4"><span class="term-list__key">[5]</span> Programming &amp; Scripting</button>
+            <button type="button" role="tab" id="skill-tab-0" aria-controls="skill-detail" aria-selected="true" data-skill-tab="0"><span class="term-list__key">[1]</span> UI/UX Design</button>
+            <button type="button" role="tab" id="skill-tab-1" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="1"><span class="term-list__key">[2]</span> Front End</button>
+            <button type="button" role="tab" id="skill-tab-2" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="2"><span class="term-list__key">[3]</span> Back End &amp; APIs</button>
+            <button type="button" role="tab" id="skill-tab-3" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="3"><span class="term-list__key">[4]</span> Cloud &amp; DevOps</button>
+            <button type="button" role="tab" id="skill-tab-4" aria-controls="skill-detail" aria-selected="false" tabindex="-1" data-skill-tab="4"><span class="term-list__key">[5]</span> Systems &amp; Scripting</button>
             </div>
             <p class="term-line term-line--dim term-line--hint" aria-hidden="true">click a group to run it, or type a command (try help)</p>
             <p class="term-line term-line--show" aria-hidden="true"><span class="term-prompt"><span class="term-user">naeem@infra:</span>~$</span> <span class="term-typed"></span><span class="term-cursor"></span></p>
@@ -591,6 +851,7 @@
              script.js fills its stops from CAREER. -->
         <section class="story-panel line-panel" data-scene-panel="experience" data-fold hidden aria-labelledby="line-title">
           <div class="line-sheet">
+            <button type="button" class="paper-close" aria-label="Close Experience" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" /></svg></button>
             <header>
               <p class="line-sheet__kicker">Timetable</p>
               <h1 id="line-title" tabindex="-1">Experience</h1>
@@ -667,7 +928,91 @@
         <span class="hint-sep">·</span>
         <span class="hint-group"><kbd data-key="jump">W</kbd> Jump</span>
       </div>
+      <!-- A quiet invitation to discover the world rather than a permanent
+           tutorial. clickables.js keeps its count and remembered state. -->
+      <aside class="discovery-guide" aria-label="World discoveries">
+        <button class="discovery-guide__toggle" type="button" aria-expanded="false" aria-controls="discovery-guide-note">
+          <span class="discovery-guide__spark" aria-hidden="true"></span>
+          <span class="discovery-guide__label">World secrets</span>
+          <strong class="discovery-guide__count" data-click-found>0/10</strong>
+        </button>
+        <div class="discovery-guide__note" id="discovery-guide-note" hidden>
+          <p><strong>The scenery responds.</strong> Look for a small amber glint, then <span data-click-action>click</span> the object. Discoveries stay found.</p>
+          <button class="discovery-guide__dismiss" type="button">Got it</button>
+        </div>
+        <p class="sr-only" data-click-live aria-live="polite"></p>
+      </aside>
+      <!-- How to reach him, and the whole portfolio as one plain page, in the
+           corner from the start. Put away while a stop's sheet or the
+           terminal is up, where it would sit on the writing. -->
+      <nav class="contact-dock" aria-label="Contact and CV">
+        <a href="mailto:naeembrown544@gmail.com">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
+          <span class="contact-dock__label">Email</span>
+        </a>
+        <a href="https://linkedin.com/in/naeembrown544" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg>
+          <span class="contact-dock__label">LinkedIn</span>
+        </a>
+        <a href="https://github.com/NaeemBrown" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" /><path d="M9 18c-4.51 2-5-2-7-2" /></svg>
+          <span class="contact-dock__label">GitHub</span>
+        </a>
+        <a class="contact-dock__cv" href="cv/index.html" target="_blank" rel="noopener" title="Everything on one plain page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" /><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8" /></svg>
+          <span>CV</span>
+        </a>
+      </nav>
+      <!-- In the opening: straight to the portfolio, him off to About Me
+           (script.js, skipIntro). Hidden once the opening is over. -->
+      <button type="button" class="intro-skip" hidden>Skip intro <span aria-hidden="true">→</span></button>
+      <!-- On narrow screens, where the statue is far wider than the screen:
+           his name and what he does under the floor, while the statue is in
+           view (script.js, watchStatue). -->
+      <p class="name-caption" aria-hidden="true"><span class="name-caption__name">Naeem Brown</span><span class="name-caption__role">UX Designer &amp; Web Developer</span></p>
+      <!-- While he writes on the Experience chalkboard: E, or this, skips
+           to the finished board (chalkboard.js). -->
+      <button type="button" class="chalk-skip" hidden><kbd>E</kbd> Skip to the board</button>
     </main>
+
+    <!-- Shown once all four destinations have been opened. It gives the
+         journey an ending without taking away the option to keep exploring. -->
+    <div class="journey-finale" role="dialog" aria-modal="true" aria-labelledby="journey-finale-title" aria-describedby="journey-finale-copy" hidden>
+      <button class="journey-finale__backdrop" type="button" data-finale-close tabindex="-1" aria-label="Close the journey complete message"></button>
+      <section class="journey-finale__card">
+        <button class="journey-finale__close" type="button" data-finale-close aria-label="Close">×</button>
+        <p class="journey-finale__eyebrow"><span aria-hidden="true">✓</span> Journey complete</p>
+        <h2 id="journey-finale-title" tabindex="-1">You made it.</h2>
+        <p id="journey-finale-copy">Thanks for walking through my work. If you think I could bring something useful to your team or project, I’d love to hear about it.</p>
+        <div class="journey-finale__actions">
+          <a class="journey-finale__primary" href="mailto:naeembrown544@gmail.com?subject=Hello%20from%20your%20portfolio">Email me <span aria-hidden="true">→</span></a>
+          <a href="cv/Naeem-Brown-CV.pdf" download="Naeem-Brown-CV.pdf">Download CV <span aria-hidden="true">↓</span></a>
+          <a href="https://github.com/NaeemBrown" target="_blank" rel="noopener">View GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+        <button class="journey-finale__continue" type="button" data-finale-close>Keep exploring</button>
+      </section>
+    </div>
+
+    <!-- The case study: the Projects sheet zoomed into a whole page about one
+         project, with him walking its floors (case.js, case.css). -->
+    <div class="case" role="dialog" aria-modal="true" aria-labelledby="case-title" hidden>
+      <div class="case__scroll">
+        <header class="case__bar">
+          <button type="button" class="case__back"><span aria-hidden="true">←</span> <span class="case__long">Back to the bench</span><span class="case__short">Back</span></button>
+          <!-- Switching projects without leaving the page. -->
+          <div class="case__switch">
+            <button type="button" class="case__step" data-step="-1" aria-label="Previous project">‹</button>
+            <label class="case__pick">
+              <span class="sr-only">Project</span>
+              <select class="case__select"></select>
+            </label>
+            <button type="button" class="case__step" data-step="1" aria-label="Next project">›</button>
+          </div>
+          <a class="case__visit" target="_blank" rel="noopener"><span class="case__long">Visit live site</span><span class="case__short">Live site</span> <span aria-hidden="true">↗</span></a>
+        </header>
+        <article class="case__page"></article>
+      </div>
+    </div>
 
     <!-- The cursor over the world, an arrow in his ink with its tip at (5, 4).
          script.js moves it, swings it on its tip, and rings it over him. -->

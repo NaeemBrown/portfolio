@@ -1,0 +1,202 @@
+/* The Experience chalkboard (chalkboard.js). It shares .bench-cam's layer,
+   between the world and him, and its line style; stroke widths are set by
+   chalkboard.js so lines can thicken as the camera closes in. */
+
+.chalk-cam__floor {
+  opacity: 0;
+}
+
+.chalk-cam__seam {
+  stroke-width: 1.4px;
+}
+
+.chalk-cam__rules {
+  stroke: #c9c4ba;
+  stroke-width: 1.2px;
+}
+
+.chalk-cam__slate {
+  fill: #2c3833;
+  stroke: none;
+}
+
+/* Old erasing in the slate. */
+.chalk-cam__smudge {
+  stroke: #ebf0e8;
+  opacity: 0.035;
+}
+
+.chalk-cam__chalk path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.92;
+}
+
+.chalk-cam__chalk .is-white {
+  stroke: #efece4;
+}
+
+.chalk-cam__chalk .is-yellow {
+  stroke: #f1cd6b;
+}
+
+.chalk-cam__frame,
+.chalk-cam__tray {
+  fill: var(--ink);
+  stroke: none;
+  fill-rule: evenodd;
+}
+
+.chalk-cam__sticks {
+  stroke: #efece4;
+}
+
+.chalk-cam__eraser {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.chalk-cam__rail {
+  stroke: var(--amber);
+}
+
+/* Graphite rather than ink, so he reads first when it is in front of him. */
+.chalk-cam__ladder,
+.chalk-cam__wheels {
+  stroke: #8b867d;
+}
+
+.chalk-cam__shadow {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.chalk-cam__head {
+  fill: var(--paper);
+}
+
+/* Against the slate he gets a paper edge, so his ink lines read on it. */
+.chalk-cam__figure,
+.scene.is-by-board .figure {
+  filter: drop-shadow(0 0 1px var(--paper)) drop-shadow(0 0 1px var(--paper));
+}
+
+/* Where his sleeve rubbed the spelling out. */
+.chalk-cam__chalk path.is-smudge {
+  stroke: #efece4;
+  opacity: 0.14;
+}
+
+/* Chalk dust in the air. */
+.chalk-cam__dust {
+  stroke: #efece4;
+  stroke-linecap: round;
+}
+
+.chalk-cam__dust.is-mid {
+  opacity: 0.55;
+}
+
+.chalk-cam__dust.is-old {
+  opacity: 0.25;
+}
+
+/* The lamp over the board. */
+.chalk-cam__lamp-stem {
+  stroke: var(--ink);
+}
+
+.chalk-cam__lamp-shade {
+  fill: var(--amber);
+  stroke: var(--ink);
+}
+
+/* Its light, over the night's wash and screened like the street lamps';
+   chalkboard.js sets its opacity to the hour's lights. Off for the day, it
+   catches with the same flicker when it goes on. */
+.chalk-glow {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  mix-blend-mode: normal;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chalk-glow__lamp.is-dark {
+  opacity: 0;
+}
+
+.chalk-glow__lamp.is-lighting:not(.is-dark) {
+  animation: switch-on 0.6s steps(1);
+}
+
+/* Skipping to the finished board, bottom middle, like the controls hint. */
+.chalk-skip {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(32, 32, 31, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: chalk-skip-in 0.3s ease both;
+}
+
+.chalk-skip:hover {
+  background: #fff;
+}
+
+.chalk-skip:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.chalk-skip kbd {
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  background: #f1ede6;
+  border: 1px solid rgba(32, 32, 31, 0.26);
+  border-bottom-width: 2.5px;
+  border-radius: 4px;
+}
+
+/* No key to press on a touch screen. */
+@media (hover: none) {
+  .chalk-skip kbd {
+    display: none;
+  }
+}
+
+@keyframes chalk-skip-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chalk-skip {
+    animation: none;
+  }
+}

@@ -5,6 +5,7 @@ scratch/
 
 # Generated browser captures
 *.png
+!og-image.png
 
 # Common local files
 .DS_Store

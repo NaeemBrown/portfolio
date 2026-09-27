@@ -79,7 +79,8 @@ body {
   html.has-ink-cursor .about-paper,
   html.has-ink-cursor .about-paper *,
   html.has-ink-cursor .sprint-hint,
-  html.has-ink-cursor .sprint-hint * {
+  html.has-ink-cursor .sprint-hint *,
+  html.has-ink-cursor .stop-hit {
     cursor: pointer !important;
   }
 
@@ -1143,6 +1144,7 @@ button {
   fill: none;
   stroke: var(--ink);
   stroke-linejoin: round;
+  opacity: var(--project-world-opacity, 1); /* gone while the opening's camera is behind him */
   pointer-events: none;
 }
 
@@ -1177,13 +1179,13 @@ button {
 }
 
 .statue__engraving {
-  fill: var(--muted-ink);
+  fill: #55524c;
   stroke: none;
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 20px;
   font-synthesis: none;
   font-weight: 700;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.22em;
 }
 
 .statue__glitch {
@@ -1228,8 +1230,8 @@ button {
   transform-origin: center;
 }
 
-/* The laptop he codes on at the start: a pale aluminium body, and open, a
-   dark screen with the fix's lines on it and a soft glow. */
+/* The laptop he codes on at the start: a pale aluminium body, and open, the
+   back of its lid with a soft glow from the screen round it. */
 .figure .laptop path,
 .figure .laptop circle {
   stroke-width: 1.6;
@@ -1265,23 +1267,11 @@ button {
   stroke: none;
 }
 
-.laptop__bezel {
-  fill: #2b3036;
+.figure .laptop .laptop__mark {
+  fill: #d3cdc2;
+  stroke: #b3ab9e;
+  stroke-width: 1;
 }
-
-.figure .laptop .laptop__screen {
-  fill: #17222b;
-  stroke: none;
-}
-
-.figure .laptop .laptop__code {
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-
-.laptop__code--comment { stroke: #6f8a96; }
-.laptop__code--selector { stroke: #e9eef0; }
-.laptop__code--property { stroke: #e3a05a; }
 
 /* His laptop bag: canvas, with a darker flap and a brass buckle. He carries
    it in the opening and leaves it by his name (.start-bag). */
@@ -1364,123 +1354,352 @@ button {
   from { opacity: 0; }
 }
 
-/* The editor over his head at the start, with the fix typing out in it. */
-.intro-editor {
+/* The opening from behind him (.lap-cam): his laptop in 3D, drawn through
+   the bench's camera, and on it the screen, laid onto the lid by script.js
+   as the terminal is onto the CRT. */
+.bench-cam.lap-figure {
+  z-index: 4; /* over the screen, as he is nearer the camera than it */
+}
+
+/* A paper edge, so his ink lines read against the screen. */
+.lap-figure .bench-cam__figure {
+  filter: drop-shadow(0 0 1px var(--paper)) drop-shadow(0 0 1px var(--paper));
+}
+
+.lap-cam__alu { fill: #e4dfd6; }
+.lap-cam__glass { fill: #15181c; }
+.lap-cam__keys { stroke: #8d867b; stroke-width: calc(1.8px * var(--zoom, 1)); }
+.lap-cam__bag { fill: #e2dacb; }
+.lap-cam__flap { stroke: #a39a88; }
+
+/* The screen: what the laptop shows, sized by script.js to about the size
+   it is drawn at once the camera is round, --u being its type size, and
+   mapped onto the lid wherever the camera is. First the desktop he wakes it
+   to, then the code editor, which opens out of its icon in the dock. */
+.lap-screen {
   position: absolute;
   z-index: 4;
-  bottom: calc(100% - var(--floor-level) + var(--fig-h) * 0.84);
+  top: 0;
   left: 0;
-  width: min(290px, calc(100vw - 32px));
   overflow: hidden;
-  border: 1.5px solid var(--ink);
-  border-radius: 8px;
-  color: var(--ink);
-  background: #fbf8f1;
-  box-shadow: 5px 7px 0 rgba(32, 32, 31, 0.08);
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 1.55;
-  transform-origin: 50% 50%;
-  transition:
-    transform 420ms cubic-bezier(0.55, 0, 0.85, 0.35),
-    opacity 420ms ease-in,
-    border-color 140ms ease;
-  /* Backwards only: holding on after, it would override the transitions
-     that send it off. */
-  animation: editor-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
+  border-radius: calc(var(--u) * 0.2);
+  color: #cccccc;
+  background: #1e1e1e;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: var(--u);
+  line-height: 1.35;
+  transform-origin: 0 0;
+  pointer-events: none;
 }
 
-.intro-editor__bar {
+.lap-screen__desk {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 22% 120%, rgba(227, 160, 90, 0.75), transparent 60%),
+    linear-gradient(172deg, #2b3752 0%, #4f5b78 52%, #a9867a 100%);
+}
+
+.lap-screen__dock {
+  position: absolute;
+  bottom: calc(var(--u) * 0.6);
+  left: 50%;
+  display: flex;
+  gap: calc(var(--u) * 0.45);
+  padding: calc(var(--u) * 0.35) calc(var(--u) * 0.5);
+  border-radius: calc(var(--u) * 0.7);
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-50%);
+}
+
+.lap-screen__dock i {
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 2);
+  height: calc(var(--u) * 2);
+  border-radius: calc(var(--u) * 0.5);
+  background: #d9d4ca;
+  font-style: normal;
+}
+
+.lap-screen__dock i:nth-child(2) { background: #7fbfc9; }
+.lap-screen__dock i:nth-child(4) { background: #2f3238; }
+
+.lap-screen__dock .lap-screen__app {
+  color: #ffffff;
+  background: #1f7fd0;
+  font-family: Consolas, ui-monospace, monospace;
+  font-size: calc(var(--u) * 0.72);
+  font-weight: 700;
+}
+
+/* Clicked, it bounces as it opens. */
+.lap-screen__app.is-clicked {
+  animation: dock-bounce 520ms ease-out;
+}
+
+@keyframes dock-bounce {
+  35% { transform: translateY(calc(var(--u) * -0.7)); }
+  60% { transform: translateY(0); }
+  78% { transform: translateY(calc(var(--u) * -0.2)); }
+}
+
+.vsc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  opacity: 0;
+  transform: scale(0.08);
+  transform-origin: 58% 92%; /* its icon in the dock */
+  transition:
+    opacity 160ms ease,
+    transform 340ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.lap-screen.is-app .vsc {
+  opacity: 1;
+  transform: none;
+}
+
+.vsc__title {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: calc(var(--u) * 0.3);
+  height: calc(var(--u) * 1.5);
+  padding: 0 calc(var(--u) * 0.6);
+  background: #3c3c3c;
+  font-size: calc(var(--u) * 0.62);
+}
+
+.vsc__title i {
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: 50%;
+  background: #6b6b6b;
+}
+
+.vsc__title span {
+  margin: 0 auto;
+  padding-right: 3em; /* centred, allowing for the dots */
+}
+
+.vsc__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.vsc__bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.9);
+  width: calc(var(--u) * 2.2);
+  padding-top: calc(var(--u) * 0.6);
+  background: #333333;
+}
+
+.vsc__bar svg {
+  width: calc(var(--u) * 1.2);
+  fill: none;
+  stroke: #858585;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vsc__bar svg:first-child {
+  stroke: #ffffff;
+}
+
+.vsc__side {
+  flex: none;
+  width: calc(var(--u) * 8);
+  background: #252526;
+  font-size: calc(var(--u) * 0.64);
+  white-space: nowrap;
+}
+
+.vsc__label,
+.vsc__folder {
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.vsc__label {
+  padding: 0.8em 1.4em 0.6em;
+  color: #bbbbbb;
+  letter-spacing: 0.04em;
+}
+
+.vsc__folder {
+  padding: 0.2em 0.9em;
+  font-weight: 700;
+}
+
+.vsc__folder::before {
+  content: "▾ ";
+}
+
+.vsc__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vsc__files li {
+  padding: 0.2em 0 0.2em 1.9em;
+}
+
+.vsc__files li.is-active {
+  color: #ffffff;
+  background: #37373d;
+}
+
+/* File icons, by their ending. */
+.vsc [data-file]::before {
+  display: inline-block;
+  width: 1.6em;
+  font-family: Consolas, ui-monospace, monospace;
+  font-size: 0.8em;
+  font-weight: 700;
+}
+
+.vsc [data-file$=".js"]::before { content: "JS"; color: #cbcb41; }
+.vsc [data-file$=".css"]::before { content: "#"; color: #519aba; }
+.vsc [data-file$=".html"]::before { content: "<>"; color: #e37933; }
+
+.vsc__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vsc__tabs {
+  display: flex;
+  flex: none;
+  height: calc(var(--u) * 1.9);
+  overflow: hidden;
+  background: #252526;
+  font-size: calc(var(--u) * 0.64);
+}
+
+.vsc__tab {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(32, 32, 31, 0.14);
-  color: var(--muted-ink);
-  font-size: 11px;
+  padding: 0 1.1em 0 0.9em;
+  border-right: 1px solid #252526;
+  color: #969696;
+  background: #2d2d2d;
+  white-space: nowrap;
+  animation: tab-in 180ms ease-out;
 }
 
-.intro-editor__bar i {
-  width: 7px;
-  height: 7px;
-  border: 1.2px solid var(--muted-ink);
-  border-radius: 50%;
+.vsc__tab.is-active {
+  color: #ffffff;
+  background: #1e1e1e;
 }
 
-.intro-editor__bar span {
-  margin-left: 6px;
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(-40%); }
 }
 
-.intro-editor__bar b {
-  margin-left: auto;
-  color: #a8611f;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.intro-editor__code {
-  min-height: calc(6 * 1.55em);
+.vsc__code {
+  flex: 1;
   margin: 0;
-  padding: 8px 12px 10px 0;
+  padding: calc(var(--u) * 0.4) 0;
+  overflow: hidden;
+  color: #d4d4d4;
+  font-family: "Cascadia Code", Consolas, ui-monospace, monospace;
+  font-size: var(--u);
+  line-height: 1.5;
   white-space: pre;
 }
 
-.intro-editor__number {
+.vsc__line {
+  display: block;
+}
+
+.vsc__line.is-current {
+  box-shadow: inset 0 0 0 1px #2c2c2c;
+}
+
+.vsc__number {
   display: inline-block;
   width: 2.4em;
-  margin-right: 0.8em;
-  color: var(--muted-ink);
-  opacity: 0.55;
+  padding-right: 1.2em;
+  color: #858585;
   text-align: right;
 }
 
-.intro-editor__caret {
+.vsc__line.is-current .vsc__number {
+  color: #c6c6c6;
+}
+
+.vsc__caret {
   display: inline-block;
-  width: 0.55em;
-  height: 1.1em;
+  width: 2px;
+  height: 1.2em;
   margin-left: 1px;
-  vertical-align: -0.15em;
-  background: var(--ink);
+  vertical-align: -0.2em;
+  background: #aeafad;
   animation: caret-blink 900ms steps(1) infinite;
 }
 
-.tk-c { color: var(--muted-ink); font-style: italic; }
-.tk-s { color: var(--ink); font-weight: 700; }
-.tk-k { color: #a8611f; }
-.tk-v { color: #2f7f8f; }
-.tk-p { color: var(--muted-ink); }
+/* The code's colours, as the editor's dark theme has them, for script and
+   for styles: comment, name or selector, keyword or property, value, text
+   and punctuation, and a string. */
+.vsc__code .tk-c { color: #6a9955; }
+.vsc__code .tk-s { color: #dcdcaa; }
+.vsc__code .tk-k { color: #569cd6; }
+.vsc__code .tk-v { color: #9cdcfe; }
+.vsc__code .tk-q { color: #ce9178; }
+.vsc__code .tk-p { color: #d4d4d4; }
+.vsc__code.is-css .tk-s { color: #d7ba7d; }
+.vsc__code.is-css .tk-k { color: #9cdcfe; }
+.vsc__code.is-css .tk-v { color: #ce9178; }
 
-.intro-editor.is-applied {
-  border-color: var(--amber);
+.vsc__status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1.2em;
+  height: calc(var(--u) * 1.25);
+  padding: 0 0.8em;
+  color: #ffffff;
+  background: #007acc;
+  font-size: calc(var(--u) * 0.6);
+  white-space: nowrap;
+  transition: background 200ms ease;
 }
 
-.intro-editor.is-applied .intro-editor__bar b {
+.vsc__status b {
+  font-weight: inherit;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.vsc__where {
+  margin-left: auto;
+}
+
+/* Enter: the file goes in, and the status bar says so. */
+.lap-screen.is-applied .vsc__status {
+  background: #cc6633;
+}
+
+.lap-screen.is-applied .vsc__status b {
   opacity: 1;
 }
 
-.intro-editor.is-sent {
-  opacity: 0;
-  transform: translate(var(--to-x), var(--to-y)) scale(0.08) rotate(-10deg);
-}
-
-@keyframes editor-pop {
-  from { opacity: 0; transform: translateY(10px) scale(0.9); }
-}
-
-/* It flinches as the sound button pops out of it. The pop stays in the list
-   so that it does not play again when the flinch is over, and the flinch
-   moves it by its own properties so as not to fight the pop or the send. */
-.intro-editor.is-kicked {
-  animation:
-    editor-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards,
-    editor-kick 320ms ease-out;
-}
-
-@keyframes editor-kick {
-  30% {
-    translate: 0 5px;
-    scale: 1.01 0.97;
-  }
+/* Small on a phone, the editor keeps to its code. */
+.lap-screen.is-small .vsc__side {
+  display: none;
 }
 
 @keyframes caret-blink {
@@ -2308,16 +2527,111 @@ button {
 }
 
 .poi__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   margin-top: 14px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
+  line-height: 1.25;
   text-transform: uppercase;
   white-space: nowrap;
+  pointer-events: none;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
 }
 
 .poi.is-active {
   color: var(--ink);
+}
+
+/* Near a stop he could be sent into (script.js, updateStops), its label
+   lights up into a prompt in the key hints' clothes, E on its key, that
+   takes a click; pointed at, or its scenery is, it goes to ink. */
+.poi__key {
+  display: none;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  background: #f1ede6;
+  border: 1px solid rgba(32, 32, 31, 0.26);
+  border-bottom-width: 2.5px;
+  border-radius: 4px;
+}
+
+.poi.is-near {
+  color: var(--ink);
+}
+
+.poi.is-near .poi__dot {
+  background: var(--ink);
+}
+
+.poi.is-near .poi__label {
+  margin-top: 8px;
+  padding: 4px 13px 4px 5px;
+  border-color: rgba(32, 32, 31, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: poi-prompt-in 280ms cubic-bezier(0.2, 0.8, 0.3, 1.25) both;
+}
+
+.poi.is-near .poi__key {
+  display: inline-block;
+}
+
+.poi.is-near .poi__label:hover,
+.poi.is-near.is-hot .poi__label {
+  border-color: var(--ink);
+  color: var(--paper);
+  background: var(--ink);
+}
+
+@keyframes poi-prompt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.9);
+  }
+}
+
+/* No keys on a touch screen: the prompt is just there to be tapped. */
+@media (hover: none) {
+  .poi.is-near .poi__key {
+    display: none;
+  }
+
+  .poi.is-near .poi__label {
+    padding: 6px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poi.is-near .poi__label {
+    animation: none;
+  }
+}
+
+/* The scenery at a stop, which takes a click while he is near it. */
+.stop-hit {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.stop-hit.is-near {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .figure {
@@ -2783,6 +3097,235 @@ button {
   }
 }
 
+/* ---------------------------------------------------------- contact dock */
+
+/* Email, LinkedIn, GitHub and the plain CV page, bottom right, in the
+   clothes of the controls hint opposite. Named in full on wide screens,
+   icons alone (still named for screen readers) on narrower ones. */
+.contact-dock {
+  position: fixed;
+  right: 28px;
+  bottom: 24px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(32, 32, 31, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  animation: dock-in 0.4s ease both;
+}
+
+.contact-dock a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  color: var(--ink);
+  line-height: 1;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.contact-dock a:hover {
+  background: rgba(32, 32, 31, 0.08);
+}
+
+.contact-dock a:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+.contact-dock svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The CV is the one to take away, so it is inked in. */
+.contact-dock a.contact-dock__cv {
+  color: var(--paper, #fff);
+  background: var(--ink);
+}
+
+.contact-dock a.contact-dock__cv:hover {
+  background: #000;
+}
+
+@keyframes dock-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Out of the way of a stop's sheet, the terminal and the case study. */
+body:has(.story-panel:not([hidden])) .contact-dock,
+body:has(.case:not([hidden])) .contact-dock {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .contact-dock__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .contact-dock a {
+    padding: 7px 9px;
+  }
+}
+
+@media (max-width: 760px) {
+  .contact-dock {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  /* The skip buttons take the bottom middle there, and there is not the
+     width for both. */
+  body:has(.intro-skip:not([hidden])) .contact-dock,
+  body:has(.chalk-skip:not([hidden])) .contact-dock {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------ skip intro */
+
+/* In the opening, bottom middle, as the chalkboard's skip button is. */
+.intro-skip {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(32, 32, 31, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: intro-skip-in 0.4s 1.2s ease both;
+}
+
+.intro-skip[hidden] {
+  display: none;
+}
+
+.intro-skip:hover {
+  background: #fff;
+}
+
+.intro-skip:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+@keyframes intro-skip-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-dock {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .intro-skip {
+    bottom: 16px;
+  }
+}
+
+/* ---------------------------------------------------------- name caption */
+
+/* On narrow screens the statue is several screens wide, so his name and
+   what he does are also set under the floor while it is in view
+   (script.js). Wider screens have only the statue. */
+.name-caption {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .name-caption {
+    position: absolute;
+    z-index: 5;
+    top: calc(var(--floor-level) + clamp(24px, 4vh, 48px) + 16px);
+    right: 16px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .name-caption.is-shown {
+    opacity: var(--project-world-opacity, 1); /* gone, with the world, while the opening's camera is behind him */
+  }
+
+  .name-caption__name {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .name-caption__role {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #55524c;
+  }
+
+  html[data-sky="dark"] .name-caption__name {
+    color: #eceef5;
+  }
+
+  html[data-sky="dark"] .name-caption__role {
+    color: #c3c6d4;
+  }
+
+  body:has(.story-panel:not([hidden])) .name-caption,
+  body:has(.case:not([hidden])) .name-caption {
+    opacity: 0;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -2960,13 +3503,22 @@ button {
   bottom: 5vh;
   width: min(46vw, 620px);
   overflow-y: auto;
-  padding: clamp(28px, 4.4vh, 56px) clamp(24px, 3.6vw, 52px);
+  --sheet-pad-y: clamp(28px, 4.4vh, 56px); /* the X in the corner goes by these */
+  --sheet-pad-x: clamp(24px, 3.6vw, 52px);
+  padding: var(--sheet-pad-y) var(--sheet-pad-x);
   border: 1px solid rgba(32, 32, 31, 0.1);
   background: #fbf8f1;
   box-shadow: 0 16px 22px rgba(52, 38, 22, 0.1), 0 2px 3px rgba(52, 38, 22, 0.08);
   pointer-events: auto;
-  scrollbar-color: var(--muted-ink) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   animation: sheet-arrive 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.projects-sheet::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .projects-sheet header {
@@ -3083,7 +3635,8 @@ button {
     bottom: 14px;
     left: 14px;
     width: auto;
-    padding: 22px 20px;
+    --sheet-pad-y: 22px;
+    --sheet-pad-x: 20px;
   }
 
   .projects-sheet h1 {
@@ -3128,7 +3681,9 @@ button {
   bottom: 5vh;
   width: min(46vw, 620px);
   overflow-y: auto;
-  padding: clamp(28px, 4.4vh, 56px) clamp(24px, 3.6vw, 52px);
+  --sheet-pad-y: clamp(28px, 4.4vh, 56px);
+  --sheet-pad-x: clamp(24px, 3.6vw, 52px);
+  padding: var(--sheet-pad-y) var(--sheet-pad-x);
   border: 1px solid rgba(32, 32, 31, 0.1);
   background: #fbf8f1;
   box-shadow: 0 16px 22px rgba(52, 38, 22, 0.1), 0 2px 3px rgba(52, 38, 22, 0.08);
@@ -3260,7 +3815,8 @@ button {
     bottom: 14px;
     left: 14px;
     width: auto;
-    padding: 22px 20px;
+    --sheet-pad-y: 22px;
+    --sheet-pad-x: 20px;
   }
 
   .line-sheet h1 {
@@ -3273,6 +3829,55 @@ button {
   .line-sheet * {
     animation: none !important;
   }
+}
+
+/* The X in the top right corner of each paper, which puts it away as
+   Continue journey does, in that button's clothes. On the Projects and
+   Experience sheets it floats in the corner and stays there as the sheet
+   scrolls, so the words make room for it and pass under it. The About
+   letter places its own (see below). */
+.paper-close {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1.5px solid rgba(32, 32, 31, 0.3);
+  border-radius: 50%;
+  color: var(--ink);
+  background: #fbf8f1;
+  cursor: pointer;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.paper-close svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.paper-close:hover,
+.paper-close:focus-visible {
+  border-color: var(--ink);
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.paper-close:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.projects-sheet > .paper-close,
+.line-sheet > .paper-close {
+  position: sticky;
+  z-index: 2;
+  top: calc(12px - var(--sheet-pad-y)); /* sticking is measured inside the padding */
+  float: right;
+  margin: calc(12px - var(--sheet-pad-y)) calc(12px - var(--sheet-pad-x)) 0 12px;
 }
 
 .chapter-buttons button,
@@ -3332,6 +3937,51 @@ button {
   text-decoration: none;
   border-bottom: 1px solid currentColor;
   padding-bottom: 5px;
+}
+
+/* The front end, a chip for each tool. */
+.project-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-chips li {
+  padding: 3px 9px 4px;
+  border: 1px solid rgba(32, 32, 31, 0.28);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Detailed view (into the case study) and View project (the live site). */
+.project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+}
+
+.project-case {
+  padding: 9px 16px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fbf8f1;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.project-case:hover,
+.project-case:focus-visible {
+  background: transparent;
+  color: var(--ink);
 }
 
 /* Experience */
@@ -4209,7 +4859,55 @@ button {
   opacity: 0.88;
 }
 
-.about-panel.is-folding .about-paper__content {
+/* The CV to take away, under the last paragraph, underlined like the
+   project sheet's "View project". */
+.about-paper .about-paper__cv {
+  margin-top: 12px;
+}
+
+.about-paper__cv a {
+  color: var(--paper-ink);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 3px;
+}
+
+/* How to reach him, under the CV, in the same underlined links. */
+.about-paper .about-paper__contact {
+  margin-top: 10px;
+  color: var(--paper-muted-ink);
+}
+
+.about-paper__contact a {
+  color: var(--paper-ink);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* The letter's X (.paper-close, above): clear of the dog ear, and out
+   with the writing once the letter has unfolded. */
+.about-paper > .paper-close {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  right: 16px;
+  border-color: rgba(80, 60, 40, 0.3);
+  color: var(--paper-ink);
+  background: var(--paper-front);
+  animation: paper-writing-in 420ms ease 1150ms both;
+}
+
+.about-paper > .paper-close:hover,
+.about-paper > .paper-close:focus-visible {
+  border-color: var(--paper-ink);
+  color: var(--paper-front);
+  background: var(--paper-ink);
+}
+
+.about-panel.is-folding .about-paper__content,
+.about-panel.is-folding .about-paper > .paper-close {
   animation: paper-writing-out 140ms ease both;
 }
 

@@ -1,0 +1,511 @@
+/* ======================================================================
+   The daypart idles (idles.js): the scenery they need, his props for
+   them, and what they draw round him.
+   ====================================================================== */
+
+/* ---------------------------------------------------------- the scenery */
+
+/* The oaks' trunks and their low branches. */
+.s-bark {
+  fill: #e9e2d4;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.s-branch {
+  stroke: var(--ink);
+  stroke-width: 2.4;
+}
+
+/* Trees further off: smaller, paler. */
+.s-far {
+  fill: #f1eee8;
+  stroke: var(--muted-ink);
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+.s-birch {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.s-birch-mark {
+  stroke: var(--ink);
+  stroke-width: 2.6;
+}
+
+.s-rock {
+  fill: #e4dfd5;
+  stroke: var(--muted-ink);
+  stroke-width: 1.6;
+}
+
+/* ------------------------------------------------------------ his props */
+
+/* Turned about the hand holding it, as the tools are. */
+.prop-idle,
+.prop-idle-far,
+.prop-phone {
+  transform-origin: 70px 142px;
+}
+
+.figure .prop-idle__stick {
+  fill: none;
+  stroke: #5b8fc7;
+  stroke-width: 3px;
+}
+
+.figure .prop-idle__white,
+.figure .prop-idle__paper {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+
+.figure .prop-idle__thin {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1px;
+}
+
+.figure .prop-idle__duck {
+  fill: #f4c534;
+  stroke: var(--ink);
+  stroke-width: 1.4px;
+  stroke-linejoin: round;
+}
+
+.figure .prop-idle__beak {
+  fill: #e8772e;
+  stroke: none;
+}
+
+.figure .prop-idle__eye {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.figure .prop-idle__dark {
+  fill: #3b3a38;
+  stroke: var(--ink);
+  stroke-width: 1px;
+}
+
+.figure .prop-idle__note {
+  fill: #f6d65a;
+  stroke: var(--ink);
+  stroke-width: 1.2px;
+}
+
+.figure .prop-idle__bread {
+  fill: #f2dfb0;
+  stroke: var(--ink);
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+
+.figure .prop-idle__filling {
+  fill: none;
+  stroke: #6aa35a;
+  stroke-width: 2.6px;
+}
+
+.figure .prop-idle__metal {
+  fill: #cfd6de;
+  stroke: var(--ink);
+  stroke-width: 1.3px;
+}
+
+.figure .prop-idle__wood {
+  fill: none;
+  stroke: #724c28;
+  stroke-width: 2.6px;
+}
+
+.figure .prop-idle__mallow {
+  fill: #fffdf6;
+  stroke: #7d6b56;
+  stroke-width: 1.2px;
+}
+
+.figure .prop-idle__bottle {
+  fill: #f0f9ff;
+  stroke: #0284c7;
+  stroke-width: 1.4px;
+}
+
+.figure .prop-idle__cap {
+  fill: #0369a1;
+  stroke: none;
+}
+
+.figure .prop-headtorch__band {
+  fill: none;
+  stroke: #3b3a38;
+  stroke-width: 2.4px;
+}
+
+.figure .prop-headtorch__lamp {
+  fill: #3b3a38;
+  stroke: var(--ink);
+  stroke-width: 1px;
+}
+
+.figure .prop-headtorch__lens {
+  fill: #ffe6a3;
+  stroke: none;
+}
+
+.figure .prop-foam circle {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 0.8px;
+}
+
+.figure .prop-chestnote rect {
+  fill: #f6d65a;
+  stroke: var(--ink);
+  stroke-width: 1.1px;
+}
+
+.prop-idle,
+.prop-idle-far,
+.prop-headtorch,
+.prop-foam,
+.prop-chestnote {
+  transition: opacity 140ms ease;
+}
+
+/* What his phone's screen shows. */
+.figure .prop-phone__glyph {
+  display: none;
+  fill: none;
+  stroke: none;
+}
+
+.figure .prop-phone.is-lit .prop-phone__screen {
+  fill: #fff8dc;
+}
+
+.figure .prop-phone.is-dnd .prop-phone__glyph--dnd {
+  display: inline;
+  fill: #f0b64a;
+}
+
+.figure .prop-phone.is-muted .prop-phone__glyph--mute {
+  display: inline;
+  stroke: #e0533d;
+  stroke-width: 1.1px;
+  stroke-linecap: round;
+}
+
+.figure .prop-phone.is-page .prop-phone__screen {
+  fill: #e0533d;
+}
+
+.figure .prop-phone.is-page .prop-phone__glyph--page {
+  display: inline;
+  stroke: #fff;
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+}
+
+/* His laptop at night: blazing, then in dark mode. */
+.figure .laptop.is-glare .laptop__screen {
+  fill: #ffffff;
+}
+
+.figure .laptop.is-glare .laptop__code {
+  opacity: 0 !important;
+}
+
+.figure .laptop.is-dark-mode .laptop__screen {
+  fill: #0e1733;
+}
+
+/* The bird, head cocked, listening to him whistle. */
+.bird.is-listening .bird__head {
+  transform-box: fill-box;
+  transform-origin: 20% 90%;
+  rotate: -22deg;
+  transition: rotate 0.25s ease;
+}
+
+/* ------------------------------------------------- what they draw round him
+   In his own units (the figure's viewBox), so these widths are px on
+   screen (the figure's strokes don't scale). */
+
+.idle-fx {
+  pointer-events: none;
+}
+
+.figure .idle-fx path,
+.figure .idle-fx circle,
+.figure .idle-fx ellipse,
+.figure .idle-fx rect {
+  vector-effect: non-scaling-stroke;
+}
+
+.figure .idle-tag rect {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.4px;
+}
+
+.figure .idle-tag text {
+  fill: var(--ink);
+  stroke: none;
+  font: 700 15px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.figure .idle-note {
+  fill: var(--amber);
+  stroke: none;
+}
+
+.figure .idle-note-line {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 1.8px;
+}
+
+.figure .idle-puff {
+  fill: rgb(255 253 247 / 0.9);
+  stroke: var(--muted-ink);
+  stroke-width: 0.8px;
+}
+
+.figure .idle-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.6px;
+}
+
+.figure .idle-line--thin {
+  stroke-width: 1.8px;
+}
+
+.figure .idle-dots {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2.2px;
+  stroke-dasharray: 0.1 7;
+}
+
+.figure .idle-drop {
+  fill: #bfe6f5;
+  stroke: #0284c7;
+  stroke-width: 0.6px;
+}
+
+.figure .idle-curl {
+  fill: none;
+  stroke: rgb(255 253 248 / 0.95);
+  stroke-width: 3px;
+}
+
+.figure .idle-ball {
+  fill: #f6d65a;
+  stroke: var(--ink);
+  stroke-width: 1.2px;
+}
+
+.figure .idle-crumb {
+  fill: #d9b77a;
+  stroke: none;
+}
+
+.figure .idle-frame {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 3.2px;
+}
+
+.figure .idle-frame-fill {
+  fill: var(--amber);
+  stroke: none;
+  opacity: 0.12;
+}
+
+.figure .idle-plane {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+
+.figure .idle-string {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1px;
+}
+
+.figure .idle-bow {
+  fill: none;
+  stroke: #e0533d;
+  stroke-width: 2px;
+}
+
+.figure .idle-kite {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 1.4px;
+  stroke-linejoin: round;
+}
+
+.figure .idle-buzz {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 1.8px;
+}
+
+.figure .idle-snap {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2px;
+}
+
+.figure .idle-smoke {
+  fill: none;
+  stroke: var(--muted-ink);
+  stroke-width: 1.6px;
+}
+
+.figure .idle-shadow {
+  fill: rgb(28 20 34 / 0.62);
+  stroke: none;
+}
+
+.figure .idle-chirp {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.3px;
+  opacity: 0.8;
+}
+
+.figure .idle-photo-frame {
+  fill: #fbf9f4;
+  stroke: var(--ink);
+  stroke-width: 1.2px;
+}
+
+.figure .idle-roosting {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.figure .idle-roosting__eye {
+  fill: #fbf9f4;
+}
+
+.figure .idle-roosting__shut {
+  fill: none;
+  stroke: #fbf9f4;
+  stroke-width: 0.8px;
+}
+
+.figure .idle-far-text {
+  fill: var(--paper);
+  stroke: none;
+  font: 700 15px var(--font-display, sans-serif);
+  letter-spacing: 0.14em;
+}
+
+/* What shines: on the lights layer, screened over the night's wash. The
+   same box as the figure, where he stands, mirrored as he is. */
+.idle-glow {
+  position: absolute;
+  top: calc(1px - var(--fig-h));
+  left: 0;
+  width: calc(var(--fig-h) * 0.5785);
+  height: var(--fig-h);
+  overflow: visible;
+  transform: translateX(-50%) scaleX(var(--flip, 1));
+  pointer-events: none;
+}
+
+.idle-glow path,
+.idle-glow circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.idle-beam {
+  fill: rgb(255 236 186 / 0.34);
+}
+
+.idle-halo {
+  fill: url(#idle-soft-amber);
+}
+
+.idle-spark {
+  fill: #fff6c8;
+}
+
+.idle-flame {
+  fill: #ffb347;
+}
+
+.idle-glare {
+  fill: url(#idle-soft-white);
+}
+
+.idle-screen {
+  fill: url(#idle-soft-blue);
+}
+
+.idle-screen--warm {
+  fill: url(#idle-soft-warm);
+}
+
+.idle-glow .idle-dots--light {
+  fill: none;
+  stroke: #fff4d6;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 7;
+}
+
+/* A flash over the whole scene: his camera, a blazing screen. */
+.idle-flash {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------- left in the world */
+
+/* A crumpled sticky note tossed over his shoulder. */
+.world-paperball {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  width: calc(var(--fig-h) * 0.05);
+  aspect-ratio: 1;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: #f6d65a;
+  transform: translate(-50%, -100%);
+  opacity: var(--project-world-opacity, 1);
+  pointer-events: none;
+}
+
+/* A paper plane where it landed. */
+.world-plane {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  width: calc(var(--fig-h) * 0.13);
+  height: calc(var(--fig-h) * 0.06);
+  background: #fbf9f4;
+  clip-path: polygon(100% 60%, 0 0, 22% 60%, 0 100%);
+  transform: translate(-50%, -100%) scaleX(var(--turn, 1));
+  opacity: var(--project-world-opacity, 1);
+  filter: drop-shadow(0 0 0.6px var(--ink)) drop-shadow(0 0 0.6px var(--ink));
+  pointer-events: none;
+}

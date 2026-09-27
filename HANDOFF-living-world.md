@@ -53,7 +53,7 @@
 - The optional pegboard-hammer incident.
 - Approval of the spoken lines.
 - A design look at the night wash.
-- The sticky note's markup (`.term-note`) has gone from `index.html`, in an edit made outside this work; `test_terminal.js` stops at its first check until it's back or the test changes.
+- The sticky note was taken out on purpose; `test_terminal.js` no longer looks for it. See "His line at the terminal" in LIVING-WORLD.md.
 
 Four features for the portfolio's side-scrolling world, in priority order:
 

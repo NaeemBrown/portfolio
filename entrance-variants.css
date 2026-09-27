@@ -27,15 +27,17 @@
   opacity: 1;
 }
 
+/* Hidden with display rather than opacity, so the drops' endless
+   animations stop outside the preview instead of restyling every frame. */
 .entrance-rain,
 .entrance-snow {
   position: absolute;
   inset: 0;
-  opacity: 0;
+  display: none;
 }
 
 .entrance-weather-layer[data-weather="rain"] .entrance-rain,
-.entrance-weather-layer[data-weather="snow"] .entrance-snow { opacity: 1; }
+.entrance-weather-layer[data-weather="snow"] .entrance-snow { display: block; }
 
 .entrance-rain i {
   position: absolute;

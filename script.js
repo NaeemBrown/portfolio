@@ -83,6 +83,12 @@ mapButton.addEventListener('click', () => {
   continueJourney(true);
 });
 
+// The X on each paper puts it away, as Continue journey does.
+document.querySelectorAll('.paper-close').forEach((button) => button.addEventListener('click', () => {
+  sfx.tick();
+  continueJourney(true);
+}));
+
 /* ---------------------------------------------------------------- the rig
    Every joint carries transform-box: view-box, so a px in these transforms
    is one viewBox unit and the angles below are the ones the solver emitted. */
@@ -186,6 +192,7 @@ const CAMERA_FOLLOW_MAX = 220; // px/s; prevents a skipped opening from snapping
 /* The About stop is a campfire. He sits on the log there, the camera slides
    over to frame him beside the fire, and the About letter unfolds. */
 const SIT_TIME = 0.85; // seconds to sit down, or to stand back up
+const LEAVE_HURRY = 3; // times as fast he leaves a stop when walked off (see settled, below)
 const COMPOSE_TIME = 0.9; // seconds for the camera to frame the campfire
 const SEAT_DROP = 52; // viewBox units his hip sinks onto the log
 const SEAT_BACK = 40; // units his hip slides back behind his planted feet
@@ -241,13 +248,95 @@ const narrowScreen = window.matchMedia('(max-width: 760px)');
 
 /* ------------------------------------------------------------- audio engine */
 
+// A compact CC0 sound palette. Nothing is fetched until the visitor enables
+// sound; once decoded, short samples are reused through Web Audio. Every group
+// has alternates so repeated footsteps and taps do not sound like a button
+// being hammered. See audio/LICENSE.md for sources and licences.
+const SOUND_FILES = Object.freeze({
+  step: [
+    'audio/samples/step-soft-grass-1.ogg', 'audio/samples/step-soft-grass-2.ogg',
+    'audio/samples/step-soft-grass-3.ogg',
+  ],
+  chalk: ['audio/samples/chalk-write-soft.ogg'],
+  land: ['audio/samples/land-soft-1.ogg', 'audio/samples/land-soft-2.ogg'],
+  wood: ['audio/samples/tap-wood-1.ogg', 'audio/samples/tap-wood-2.ogg'],
+  thunk: ['audio/samples/thunk-wood.ogg'],
+  metal: ['audio/samples/metal-1.ogg', 'audio/samples/metal-2.ogg', 'audio/samples/metal-3.ogg'],
+  metalClick: ['audio/samples/metal-click.ogg'],
+  rustle: [
+    'audio/samples/paper-flip-1.ogg', 'audio/samples/paper-flip-2.ogg',
+  ],
+  cloth: ['audio/samples/cloth-1.ogg', 'audio/samples/cloth-2.ogg'],
+  paperOpen: ['audio/samples/paper-open.ogg'],
+  paperClose: ['audio/samples/paper-close.ogg'],
+  creak: ['audio/samples/creak-1.ogg', 'audio/samples/creak-2.ogg'],
+  uiClick: ['audio/samples/ui-click-1.ogg', 'audio/samples/ui-click-2.ogg'],
+  uiHover: ['audio/samples/ui-hover.ogg'],
+  uiSwitch: ['audio/samples/ui-switch.ogg'],
+  bell: ['audio/samples/station-bell.ogg'],
+  // living: the things that answer a click (clickables.js; the list they
+  // were found from is SOUNDS-clickables.md). The stone notes are separate
+  // groups, as each is repitched from its own note.
+  stoneC4: ['audio/samples/stone-note-c4.ogg'],
+  stoneG4: ['audio/samples/stone-note-g4.ogg'],
+  stoneE5: ['audio/samples/stone-note-e5.ogg'],
+  clap: ['audio/samples/clap-1.ogg', 'audio/samples/clap-2.ogg'],
+  bulbPop: ['audio/samples/bulb-pop.ogg'],
+  postThump: ['audio/samples/post-thump-1.ogg', 'audio/samples/post-thump-2.ogg'],
+  fireFlare: ['audio/samples/fire-flare.ogg'],
+  firePop: ['audio/samples/fire-pop-1.ogg', 'audio/samples/fire-pop-2.ogg', 'audio/samples/fire-pop-3.ogg'],
+  fireRoar: ['audio/samples/fire-roar.ogg'],
+  axePull: ['audio/samples/axe-pull.ogg'],
+  swish: ['audio/samples/swish-1.ogg', 'audio/samples/swish-2.ogg'],
+  axeChop: ['audio/samples/axe-chop-1.ogg', 'audio/samples/axe-chop-2.ogg'],
+  woodStack: ['audio/samples/wood-stack-1.ogg', 'audio/samples/wood-stack-2.ogg'],
+  snore: ['audio/samples/snore-1.ogg', 'audio/samples/snore-2.ogg'],
+  tentFlap: ['audio/samples/tent-flap.ogg'],
+  birdFlutter: ['audio/samples/bird-flutter.ogg'],
+  birdChirp: ['audio/samples/bird-chirp-1.ogg', 'audio/samples/bird-chirp-2.ogg'],
+  signSpin: ['audio/samples/sign-spin.ogg'],
+  pegboardLift: ['audio/samples/pegboard-lift-1.ogg', 'audio/samples/pegboard-lift-2.ogg'],
+  ratchet: ['audio/samples/ratchet.ogg'],
+  sawStroke: ['audio/samples/saw-stroke-1.ogg', 'audio/samples/saw-stroke-2.ogg', 'audio/samples/saw-stroke-3.ogg'],
+  clockTick: ['audio/samples/clock-tick-1.ogg', 'audio/samples/clock-tick-2.ogg'],
+  clockChime: ['audio/samples/clock-chime.ogg'],
+  watchTap: ['audio/samples/watch-tap.ogg'],
+  serverSpinup: ['audio/samples/server-spinup.ogg'],
+  serverAlarm: ['audio/samples/server-alarm.ogg'],
+  cableUnplug: ['audio/samples/cable-unplug.ogg'],
+  cablePlug: ['audio/samples/cable-plug.ogg'],
+  shootingStar: ['audio/samples/shooting-star.ogg'],
+  wishChime: ['audio/samples/wish-chime.ogg'],
+  fireAmbience: ['audio/ambience-fire.mp3'],
+  nightAmbience: ['audio/ambience-night.mp3'],
+  birdsAmbience: ['audio/ambience-birds.mp3'],
+});
+
 class SoundEngine {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
-    this.enabled = localStorage.getItem('cv_sound_enabled') === 'true';
+    this.sampleGain = null;
+    this.synthGain = null;
+    try {
+      this.enabled = localStorage.getItem('cv_sound_enabled') === 'true';
+    } catch {
+      // Audio still works when storage is disabled or its quota is blocked;
+      // only remembering the preference is unavailable.
+      this.enabled = false;
+    }
     this.stepAlt = false;
     this.lastStepTime = 0;
+    this.lastChalkTime = 0;
+    this.buffers = new Map();
+    this.sampleLoad = null;
+    this.samplesReady = false;
+    this.sampleErrors = [];
+    this.sampleCursor = new Map();
+    this.bufferLevels = new WeakMap();
+    this.loops = new Map();
+    this.playedSamples = 0;
+    this.lastSample = '';
   }
 
   init() {
@@ -256,8 +345,179 @@ class SoundEngine {
     if (!AudioCtx) return;
     this.ctx = new AudioCtx();
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(this.enabled ? 0.35 : 0, this.ctx.currentTime);
-    this.masterGain.connect(this.ctx.destination);
+    this.sampleGain = this.ctx.createGain();
+    this.synthGain = this.ctx.createGain();
+    const limiter = this.ctx.createDynamicsCompressor();
+    limiter.threshold.value = -18;
+    limiter.knee.value = 18;
+    limiter.ratio.value = 4;
+    limiter.attack.value = 0.004;
+    limiter.release.value = 0.22;
+    // Set the property as well as the timeline value. A newly resumed audio
+    // context can otherwise expose GainNode's default of 1 for its first
+    // render quantum, making the first click much louder than the mix.
+    const masterLevel = this.enabled ? 0.28 : 0;
+    this.masterGain.gain.value = masterLevel;
+    this.masterGain.gain.setValueAtTime(masterLevel, this.ctx.currentTime);
+    this.sampleGain.gain.value = 0.9;
+    this.synthGain.gain.value = 0.58;
+    this.sampleGain.connect(this.masterGain);
+    this.synthGain.connect(this.masterGain);
+    this.masterGain.connect(limiter).connect(this.ctx.destination);
+    if (this.enabled) this.loadSamples();
+  }
+
+  // Fetches and decodes the library once. A failed file never breaks sound:
+  // its old procedural equivalent remains as a fallback.
+  loadSamples() {
+    if (!this.ctx) return Promise.resolve();
+    if (this.sampleLoad) return this.sampleLoad;
+    const jobs = [];
+    Object.entries(SOUND_FILES).forEach(([name, paths]) => {
+      const group = [];
+      this.buffers.set(name, group);
+      paths.forEach((path) => {
+        jobs.push(fetch(path, { cache: 'force-cache' })
+          .then((response) => {
+            if (!response.ok) throw new Error(`${response.status} ${path}`);
+            return response.arrayBuffer();
+          })
+          .then((bytes) => this.ctx.decodeAudioData(bytes))
+          .then((buffer) => group.push(name.endsWith('Ambience') ? this.seamlessLoop(buffer) : buffer))
+          .catch(() => this.sampleErrors.push(path)));
+      });
+    });
+    this.sampleLoad = Promise.all(jobs).then(() => {
+      // Alternates from a pack can differ by more than 10 dB. Match them
+      // within a conservative range so repetition feels varied, not random.
+      this.buffers.forEach((buffers) => {
+        if (buffers.length < 2) return;
+        const levels = buffers.map((buffer) => this.bufferRms(buffer));
+        const ordered = [...levels].sort((a, b) => a - b);
+        const middle = ordered.length / 2;
+        const target = ordered.length % 2 ? ordered[Math.floor(middle)] : Math.sqrt(ordered[middle - 1] * ordered[middle]);
+        buffers.forEach((buffer, index) => this.bufferLevels.set(buffer, clamp(target / levels[index], 0.65, 1.8)));
+      });
+      this.samplesReady = true;
+    });
+    return this.sampleLoad;
+  }
+
+  bufferRms(buffer) {
+    let power = 0;
+    let count = 0;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel);
+      for (let i = 0; i < data.length; i += 1) power += data[i] * data[i];
+      count += data.length;
+    }
+    return Math.sqrt(power / Math.max(1, count));
+  }
+
+  // MP3 previews can retain a small discontinuity even when their source is
+  // a loop. Crossfade the tail into the opening so no tick is heard at wrap.
+  seamlessLoop(buffer) {
+    const overlap = Math.min(Math.round(buffer.sampleRate * 0.25), Math.floor(buffer.length / 8));
+    if (overlap < 2) return buffer;
+    const length = buffer.length - overlap;
+    const loop = this.ctx.createBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const from = buffer.getChannelData(channel);
+      const to = loop.getChannelData(channel);
+      for (let i = 0; i < length; i += 1) to[i] = from[i + overlap];
+      for (let i = 0; i < overlap; i += 1) {
+        const t = i / (overlap - 1);
+        const tail = length - overlap + i;
+        to[tail] = from[buffer.length - overlap + i] * Math.cos(t * Math.PI / 2)
+          + from[i] * Math.sin(t * Math.PI / 2);
+      }
+    }
+    return loop;
+  }
+
+  // Plays one alternate from a group through the natural-sound bus. Small
+  // rate variation prevents the repeated-sample “machine gun” effect.
+  sample(name, {
+    vol = 0.2, rate = 1, at = 0, pan = 0, vary = 0.035,
+    lowpass = 0, highpass = 0, maxDuration = Infinity,
+  } = {}) {
+    if (!this.live) return false;
+    const choices = this.buffers.get(name);
+    if (!choices?.length) {
+      this.loadSamples();
+      return false;
+    }
+    const previous = this.sampleCursor.get(name) ?? -1;
+    const offset = choices.length > 1 ? 1 + Math.floor(Math.random() * (choices.length - 1)) : 1;
+    const index = (previous + offset) % choices.length;
+    this.sampleCursor.set(name, index);
+    const source = this.ctx.createBufferSource();
+    source.buffer = choices[index];
+    source.playbackRate.value = Math.max(0.45, rate * (1 + (Math.random() * 2 - 1) * vary));
+    const gain = this.ctx.createGain();
+    const start = this.ctx.currentTime + at;
+    const naturalDuration = source.buffer.duration / source.playbackRate.value;
+    const duration = Math.max(0.04, Math.min(naturalDuration, maxDuration));
+    const matchedVol = Math.max(0.0002, vol * (this.bufferLevels.get(source.buffer) || 1));
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(matchedVol, start + Math.min(0.008, duration / 4));
+    gain.gain.setValueAtTime(matchedVol, start + Math.max(0.01, duration - 0.025));
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    let output = source;
+    if (highpass > 0) {
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = highpass;
+      output.connect(filter);
+      output = filter;
+    }
+    if (lowpass > 0) {
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = lowpass;
+      filter.Q.value = 0.65;
+      output.connect(filter);
+      output = filter;
+    }
+    if (this.ctx.createStereoPanner) {
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.value = clamp(pan, -1, 1);
+      output.connect(gain).connect(panner).connect(this.sampleGain);
+    } else {
+      output.connect(gain).connect(this.sampleGain);
+    }
+    source.start(start);
+    if (duration < naturalDuration - 0.002) source.stop(start + duration);
+    this.playedSamples += 1;
+    this.lastSample = name;
+    return true;
+  }
+
+  // Starts a seamless environmental bed once, then only rides its gain.
+  // The fire supplies its own distance-based level; day/night beds crossfade.
+  ambient(name, level, { rate = 1 } = {}) {
+    if (!this.ctx) return false;
+    const choices = this.buffers.get(name);
+    if (!choices?.length) {
+      if (this.enabled) this.loadSamples();
+      return false;
+    }
+    let loop = this.loops.get(name);
+    if (!loop) {
+      const source = this.ctx.createBufferSource();
+      const gain = this.ctx.createGain();
+      source.buffer = choices[0];
+      source.loop = true;
+      source.playbackRate.value = rate;
+      gain.gain.value = 0;
+      source.connect(gain).connect(this.sampleGain);
+      source.start();
+      loop = { source, gain, level: 0 };
+      this.loops.set(name, loop);
+    }
+    loop.level = clamp(level, 0, 1);
+    loop.gain.gain.setTargetAtTime(this.enabled ? loop.level : 0, this.ctx.currentTime, 0.35);
+    return true;
   }
 
   set(on) {
@@ -266,10 +526,17 @@ class SoundEngine {
       this.ctx.resume();
     }
     this.enabled = on;
-    localStorage.setItem('cv_sound_enabled', String(this.enabled));
-    if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(this.enabled ? 0.35 : 0, this.ctx.currentTime, 0.05);
+    try {
+      localStorage.setItem('cv_sound_enabled', String(this.enabled));
+    } catch {
+      // Preference persistence is optional. Keep the engine and its button
+      // in sync even when the browser refuses the write.
     }
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(this.enabled ? 0.28 : 0, this.ctx.currentTime, 0.05);
+      this.loops.forEach((loop) => loop.gain.gain.setTargetAtTime(this.enabled ? loop.level : 0, this.ctx.currentTime, 0.2));
+    }
+    if (this.enabled) this.loadSamples();
     return this.enabled;
   }
 
@@ -282,37 +549,72 @@ class SoundEngine {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    if (this.enabled) this.loadSamples();
   }
 
   step(isSprint = false) {
     if (!this.enabled || !this.ctx) return;
     const now = this.ctx.currentTime;
-    if (now - this.lastStepTime < (isSprint ? 0.11 : 0.22)) return;
+    if (now - this.lastStepTime < (isSprint ? 0.14 : 0.24)) return;
     this.lastStepTime = now;
     this.stepAlt = !this.stepAlt;
+
+    if (this.sample('step', {
+      // These source recordings are deliberately quiet; the resulting mix
+      // remains softer than the old hard impacts despite the higher gain.
+      vol: isSprint ? 1.8 : 1.35,
+      rate: isSprint ? 1.08 : 0.98,
+      pan: this.stepAlt ? -0.05 : 0.05,
+      vary: 0.035,
+      highpass: 75,
+      lowpass: isSprint ? 6200 : 5200,
+      maxDuration: isSprint ? 0.34 : 0.4,
+    })) return;
 
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     const baseFreq = isSprint ? (this.stepAlt ? 175 : 155) : (this.stepAlt ? 130 : 115);
 
-    osc.type = 'triangle';
+    osc.type = 'sine';
     osc.frequency.setValueAtTime(baseFreq, now);
     osc.frequency.exponentialRampToValueAtTime(45, now + (isSprint ? 0.038 : 0.058));
 
-    const vol = isSprint ? 0.16 : 0.11;
+    const vol = isSprint ? 0.045 : 0.032;
     gain.gain.setValueAtTime(vol, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + (isSprint ? 0.042 : 0.065));
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     osc.start(now);
     osc.stop(now + 0.07);
   }
 
+  // Keep the real board texture soft and trim it to the animated stroke.
+  chalk(duration, index = 0) {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastChalkTime < 0.075) return;
+    this.lastChalkTime = now;
+    if (this.sample('chalk', {
+      vol: clamp(0.065 + duration * 0.025, 0.065, 0.08),
+      rate: 0.94 + (index % 4) * 0.025,
+      pan: ((index % 5) - 2) * 0.018,
+      vary: 0.025,
+      highpass: 170,
+      lowpass: 4200,
+      maxDuration: clamp(duration + 0.055, 0.12, 0.42),
+    })) return;
+    this.hiss({
+      type: 'bandpass', freq: 1450 + (index % 4) * 90, to: 1850,
+      q: 0.75, vol: 0.011, dur: clamp(duration, 0.045, 0.24), attack: 0.012,
+    });
+  }
+
   skid() {
     if (!this.enabled || !this.ctx) return;
     const now = this.ctx.currentTime;
+    this.sample('step', { vol: 0.25, rate: 0.72, vary: 0.02 });
     const bufferSize = Math.floor(this.ctx.sampleRate * 0.16);
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -330,18 +632,19 @@ class SoundEngine {
     filter.Q.value = 2.5;
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.setValueAtTime(0.12, now);
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
 
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     noise.start(now);
   }
 
   jump() {
     if (!this.enabled || !this.ctx) return;
+    if (this.sample('cloth', { vol: 0.16, rate: 1.22, vary: 0.04 })) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -350,11 +653,11 @@ class SoundEngine {
     osc.frequency.setValueAtTime(180, now);
     osc.frequency.exponentialRampToValueAtTime(460, now + 0.12);
 
-    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.setValueAtTime(0.09, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     osc.start(now);
     osc.stop(now + 0.14);
@@ -362,6 +665,7 @@ class SoundEngine {
 
   land() {
     if (!this.enabled || !this.ctx) return;
+    if (this.sample('land', { vol: 0.46, rate: 0.95, vary: 0.045 })) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -370,11 +674,11 @@ class SoundEngine {
     osc.frequency.setValueAtTime(120, now);
     osc.frequency.exponentialRampToValueAtTime(35, now + 0.08);
 
-    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.setValueAtTime(0.11, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     osc.start(now);
     osc.stop(now + 0.09);
@@ -383,6 +687,7 @@ class SoundEngine {
   // A handcar's wheel over a rail joint.
   clack() {
     if (!this.enabled || !this.ctx) return;
+    if (this.sample('metal', { vol: 0.16, rate: 1.2, vary: 0.05 })) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -395,7 +700,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     osc.start(now);
     osc.stop(now + 0.04);
@@ -403,6 +708,10 @@ class SoundEngine {
 
   anvil(strike = 1) {
     if (!this.enabled || !this.ctx) return;
+    if (this.sample('metal', { vol: 0.42, rate: 0.82 + (strike % 3) * 0.03, vary: 0.025 })) {
+      this.tone(720 + (strike % 3) * 55, { vol: 0.025, dur: 0.28 });
+      return;
+    }
     const now = this.ctx.currentTime;
     const baseFreq = 780 + (strike % 3) * 60;
     const freqs = [baseFreq, baseFreq * 2.76, baseFreq * 5.4, baseFreq * 8.1];
@@ -419,7 +728,7 @@ class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.001, now + decays[idx]);
 
       osc.connect(gain);
-      gain.connect(this.masterGain);
+      gain.connect(this.synthGain);
 
       osc.start(now);
       osc.stop(now + decays[idx]);
@@ -434,7 +743,7 @@ class SoundEngine {
     const clickGain = this.ctx.createGain();
     clickGain.gain.setValueAtTime(0.28, now);
     click.connect(clickGain);
-    clickGain.connect(this.masterGain);
+    clickGain.connect(this.synthGain);
     click.start(now);
   }
 
@@ -462,7 +771,7 @@ class SoundEngine {
 
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     noise.start(now);
   }
@@ -489,13 +798,14 @@ class SoundEngine {
 
       src.connect(filt);
       filt.connect(gain);
-      gain.connect(this.masterGain);
+      gain.connect(this.synthGain);
       src.start(t);
     }
   }
 
   swat() {
     if (!this.enabled || !this.ctx) return;
+    if (this.sample('cloth', { vol: 0.18, rate: 1.35, vary: 0.05 })) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -508,7 +818,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.synthGain);
 
     osc.start(now);
     osc.stop(now + 0.08);
@@ -534,7 +844,7 @@ class SoundEngine {
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain).connect(this.masterGain);
+    osc.connect(gain).connect(this.synthGain);
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
@@ -563,13 +873,14 @@ class SoundEngine {
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + Math.min(attack, dur / 2));
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    source.connect(filter).connect(gain).connect(this.masterGain);
+    source.connect(filter).connect(gain).connect(this.synthGain);
     source.start(t, Math.random() * 0.5);
     source.stop(t + dur + 0.02);
   }
 
   // A click, for buttons.
   tick(high = false) {
+    if (this.sample('uiClick', { vol: 0.13, rate: high ? 1.18 : 0.96, vary: 0.025 })) return;
     this.tone(high ? 1500 : 1000, { type: 'triangle', to: high ? 1150 : 760, vol: 0.1, dur: 0.05 });
     this.hiss({ type: 'highpass', freq: 5000, vol: 0.03, dur: 0.02, attack: 0.001 });
   }
@@ -579,11 +890,13 @@ class SoundEngine {
     const now = performance.now();
     if (now - (this.lastHover || 0) < 70) return;
     this.lastHover = now;
+    if (this.sample('uiHover', { vol: 0.035, rate: 1.1, vary: 0.02 })) return;
     this.tone(2100, { vol: 0.02, dur: 0.03 });
   }
 
   // A speech bubble opening.
   pop(at = 0) {
+    if (this.sample('uiSwitch', { vol: 0.12, rate: 1.15, at, vary: 0.02 })) return;
     this.tone(300, { to: 780, vol: 0.1, dur: 0.07, at });
   }
 
@@ -609,8 +922,8 @@ class SoundEngine {
   // A two-note chime going up: done, it worked.
   chime(at = 0) {
     [1319, 1976].forEach((freq, i) => {
-      this.tone(freq, { vol: 0.08, dur: 0.5, at: at + i * 0.09 });
-      this.tone(freq * 2.01, { vol: 0.02, dur: 0.25, at: at + i * 0.09 });
+      this.tone(freq, { vol: 0.045, dur: 0.5, at: at + i * 0.09 });
+      this.tone(freq * 2.01, { vol: 0.012, dur: 0.25, at: at + i * 0.09 });
     });
   }
 
@@ -624,6 +937,7 @@ class SoundEngine {
 
   // Stone settling into place.
   thunk(at = 0) {
+    if (this.sample('thunk', { vol: 0.44, rate: 0.92, at, vary: 0.025 })) return;
     this.tone(150, { to: 52, vol: 0.26, dur: 0.28, at });
     this.hiss({ type: 'lowpass', freq: 700, vol: 0.1, dur: 0.12, at, attack: 0.002 });
   }
@@ -635,6 +949,7 @@ class SoundEngine {
 
   // Paper being unfolded or folded.
   rustle(dur = 0.3, at = 0) {
+    if (this.sample('rustle', { vol: clamp(0.12 + dur * 0.08, 0.12, 0.22), rate: 0.96, at, vary: 0.08 })) return;
     for (let i = 0; i < 6; i += 1) {
       this.hiss({
         type: 'highpass', freq: 2500 + Math.random() * 2500, vol: 0.04 + Math.random() * 0.05,
@@ -645,18 +960,23 @@ class SoundEngine {
 
   // A knock on wood; `pitch` above 1 for smaller, lighter things.
   tap(pitch = 1, at = 0) {
+    if (this.sample('wood', { vol: 0.2, rate: clamp(pitch * 0.8, 0.65, 1.65), at, vary: 0.035 })) return;
     this.tone(420 * pitch, { type: 'triangle', to: 170 * pitch, vol: 0.14, dur: 0.07, at });
     this.hiss({ freq: 1800 * pitch, vol: 0.04, dur: 0.03, at, attack: 0.001 });
   }
 
   // A laptop lid clicking open or shut.
   lid(open) {
+    const click = this.sample('metalClick', { vol: 0.14, rate: open ? 1.2 : 0.92, vary: 0.02 });
+    const paper = this.sample(open ? 'paperOpen' : 'paperClose', { vol: 0.08, at: 0.01, vary: 0.02 });
+    if (click || paper) return;
     this.tap(open ? 1.5 : 1.1);
     this.tone(open ? 3200 : 2400, { type: 'square', vol: 0.02, dur: 0.015, at: 0.02 });
   }
 
   // A small hammer on a model: a bright tink.
   tink(strike = 0) {
+    if (this.sample('metal', { vol: 0.2, rate: 1.25 + (strike % 3) * 0.08, vary: 0.02 })) return;
     const freq = 1900 + (strike % 3) * 150;
     this.tone(freq, { vol: 0.09, dur: 0.2 });
     this.tone(freq * 2.7, { vol: 0.025, dur: 0.08 });
@@ -677,6 +997,10 @@ class SoundEngine {
 
   // A station bell: two strikes.
   bell(at = 0) {
+    if (this.sample('bell', { vol: 0.26, at, vary: 0.01 })) {
+      this.sample('bell', { vol: 0.18, rate: 1.015, at: at + 0.22, vary: 0.01 });
+      return;
+    }
     [0, 0.22].forEach((gap) => {
       this.tone(988, { vol: 0.09, dur: 0.8, at: at + gap });
       this.tone(988 * 2.76, { vol: 0.025, dur: 0.3, at: at + gap });
@@ -685,33 +1009,19 @@ class SoundEngine {
 
   // A board of flaps turning over, as a station sign drops in.
   flaps(at = 0) {
+    if (this.sample('rustle', { vol: 0.18, rate: 1.18, at, vary: 0.04 })) {
+      this.sample('rustle', { vol: 0.13, rate: 1.3, at: at + 0.08, vary: 0.04 });
+      this.sample('rustle', { vol: 0.1, rate: 1.42, at: at + 0.16, vary: 0.04 });
+      return;
+    }
     for (let i = 0; i < 7; i += 1) {
       this.tone(1900 - i * 90, { type: 'triangle', to: 1100, vol: 0.09, dur: 0.02, at: at + i * 0.03 });
     }
   }
 
-  // The fire, heard more the nearer he is (`level` 0..1): a low roar that
-  // fades in and out, and crackles popping at random, `dt` seconds' worth.
-  fire(level, dt) {
-    if (!this.ctx) return;
-    if (!this.fireBed) {
-      const source = this.ctx.createBufferSource();
-      source.buffer = this.noise();
-      source.loop = true;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 420;
-      this.fireBed = this.ctx.createGain();
-      this.fireBed.gain.value = 0;
-      source.connect(filter).connect(this.fireBed).connect(this.masterGain);
-      source.start();
-    }
-    this.fireBed.gain.setTargetAtTime(this.enabled ? 0.35 * level : 0, this.ctx.currentTime, 0.4);
-    if (!this.live || level < 0.03) return;
-    if (Math.random() < dt * 10 * level) {
-      this.hiss({ freq: 1500 + Math.random() * 3500, q: 3, vol: (0.08 + Math.random() * 0.17) * level, dur: 0.012 + Math.random() * 0.03, attack: 0.001 });
-    }
-    if (Math.random() < dt * 1.2 * level) this.hiss({ type: 'lowpass', freq: 320, vol: 0.4 * level, dur: 0.09, attack: 0.004 });
+  // The fire, heard more the nearer he is; darkness can lift `level` to 1.5.
+  fire(level) {
+    this.ambient('fireAmbience', 0.52 * clamp(level, 0, 1.5));
   }
 }
 
@@ -811,6 +1121,11 @@ const pointerPlay = {
   reaction: null,
   cooldownUntil: 0,
 };
+// The main frame already knows exactly where the figure is drawn. Keep that
+// geometry here instead of asking the browser for a fresh layout rectangle on
+// every pointer event (and again every frame). Those synchronous reads made
+// the custom cursor visibly trail on slower machines.
+let pointerFigureBox = null;
 
 const pointerPostures = {
   swat: [
@@ -888,25 +1203,27 @@ function postured(base, posture) {
 }
 
 function figurePointerHit(x, y) {
-  if (!finePointer.matches || !inkCursor) return false;
-  const style = getComputedStyle(figure);
-  if (style.visibility === 'hidden' || Number(style.opacity) < 0.2) return false;
-  const rect = figure.getBoundingClientRect();
-  if (!rect.width || !rect.height) return false;
-  const centreX = rect.left + rect.width * 0.5;
-  const centreY = rect.top + rect.height * 0.54;
-  const radiusX = rect.width * 0.36 + 9;
-  const radiusY = rect.height * 0.5;
-  const dx = (x - centreX) / radiusX;
-  const dy = (y - centreY) / radiusY;
+  if (!finePointer.matches || !inkCursor || !pointerFigureBox || figure.style.visibility === 'hidden') return false;
+  const dx = (x - pointerFigureBox.centreX) / pointerFigureBox.radiusX;
+  const dy = (y - pointerFigureBox.centreY) / pointerFigureBox.radiusY;
   return dx * dx + dy * dy <= 1;
+}
+
+function updateFigurePointerBox(shift, verticalShift, flip, unit) {
+  const width = 140 * unit * Math.abs(flip); // the figure SVG viewBox is 140 × 242
+  const height = UNITS_TALL * unit;
+  pointerFigureBox = {
+    centreX: sceneWidth / 2 + shift,
+    centreY: floorY + 1 + verticalShift - height * 0.46,
+    radiusX: width * 0.36 + 9,
+    radiusY: height * 0.5,
+  };
 }
 
 function startPointerReaction(kind, now = performance.now()) {
   if (now < pointerPlay.cooldownUntil || !figurePointerHit(pointerPlay.x, pointerPlay.y)) return;
   cancelAmbient(); // living: a poke stops whatever he was doing by himself
-  const rect = figure.getBoundingClientRect();
-  const side = pointerPlay.x >= rect.left + rect.width / 2 ? 1 : -1;
+  const side = pointerPlay.x >= pointerFigureBox.centreX ? 1 : -1;
   pointerPlay.reaction = {
     kind,
     side,
@@ -961,9 +1278,6 @@ const placeCursor = (x, y) => {
 
 function updateInkCursor(dt) {
   if (!inkCursor || !finePointer.matches) return;
-  // Position is kept in lockstep with mouse coordinates for 0 latency
-  placeCursor(pointerPlay.x, pointerPlay.y);
-
   // It swings back off true as it is dragged sideways, like a tag on a
   // string, and settles once the mouse stops.
   if (performance.now() - pointerPlay.lastMove > 60) pointerPlay.velocityX = 0;
@@ -1003,7 +1317,7 @@ if (inkCursor && finePointer.matches) {
 
     updateCursorPos(event.clientX, event.clientY);
 
-    const isOverInteractive = Boolean(event.target.closest('button, a, summary, [role="tab"], [role="button"], input, select, textarea, .navbar, .about-paper, .projects-sheet, .line-sheet, .sprint-hint'));
+    const isOverInteractive = Boolean(event.target.closest('button, a, summary, [role="tab"], [role="button"], input, select, textarea, .navbar, .about-paper, .projects-sheet, .line-sheet, .sprint-hint, .stop-hit, .scene.has-clicks .click-hit:not(.is-off), .sky-stars.is-wishable i'));
     inkCursor.classList.toggle('is-over-action', isOverInteractive);
     if (!isOverInteractive) {
       inkCursor.classList.add('is-visible');
@@ -2022,11 +2336,13 @@ let sceneWidth = 0;
 let sceneHeight = 0;
 let floorY = 0; // where the floor line sits in the scene, in px
 let navHeight = 0;
+let figureUnit = 1;
 function measureScene() {
   sceneWidth = scene.clientWidth;
   sceneHeight = scene.clientHeight;
   floorY = world.getBoundingClientRect().top - scene.getBoundingClientRect().top;
   navHeight = parseFloat(getComputedStyle(scene).getPropertyValue('--nav-h')) || 0;
+  figureUnit = figure.clientHeight / UNITS_TALL;
 }
 measureScene();
 window.addEventListener('resize', measureScene);
@@ -2478,7 +2794,9 @@ function figureJoints(p, x, spread) {
   return joints;
 }
 
-// `rig` is which drawing of him: the bench's, or the Skills console's.
+// `rig` is which drawing of him: the bench's, the Skills console's, or the
+// opening's at his laptop, which may draw his hands smaller (`hand`, in
+// units) once round, as it comes in so close.
 const benchRig = { group: benchFigure, parts: figureParts, fade: spineFade, order: '' };
 function drawFigure(camera, joints, e, rig = benchRig) {
   const { group, parts } = rig;
@@ -2519,7 +2837,7 @@ function drawFigure(camera, joints, e, rig = benchRig) {
     const dotEl = fore.lastElementChild;
     dotEl.setAttribute('cx', palm.x.toFixed(1));
     dotEl.setAttribute('cy', palm.y.toFixed(1));
-    dotEl.setAttribute('r', (mix(2, 3, e) * palm.s).toFixed(2));
+    dotEl.setAttribute('r', (mix(2, rig.hand ?? 3, e) * palm.s).toFixed(2));
     depth[`${which}-upper`] = (camera.project(shoulder).depth + camera.project(elbow).depth) / 2;
     depth[`${which}-fore`] = (camera.project(elbow).depth + palm.depth) / 2;
   }
@@ -2565,45 +2883,18 @@ const TOSS_TIME = 0.42; // seconds for a part swept off the board to land back w
 const HAMMER_LENGTH = Math.hypot(...sub(HAMMER.head, HAMMER.grip));
 
 const MODELS = [
-  // Project 01: a robot.
+  // CaseMap Next Gen: a camera on a tripod.
   {
-    strike: [0, 31, -3],
+    strike: [1, 25, -4],
     parts: [
-      { shape: 'box', at: [0, 0, -4.5], size: [6, 9, 5], color: 'ink' },
-      { shape: 'box', at: [0, 0, 4.5], size: [6, 9, 5], color: 'ink' },
-      { shape: 'box', at: [0, 9, 0], size: [12, 13, 16], color: 'teal' },
-      { shape: 'box', at: [0, 10, -10.5], size: [5, 11, 4], color: 'amber' },
-      { shape: 'box', at: [0, 10, 10.5], size: [5, 11, 4], color: 'amber' },
-      { shape: 'box', at: [0, 22, 0], size: [10, 9, 10], color: 'paper', face: [0.3, 0.55, 0.7, 0.75] },
-      { shape: 'round', at: [0, 31, 0], r: 1, h: 7, color: 'red' },
+      { shape: 'legs', at: [0, 0, 0], legs: [[-9, 0, -7], [-9, 0, 7], [9, 0, 0]], h: 16, color: 'ink' },
+      { shape: 'box', at: [1, 16, 0], size: [10, 9, 14], color: 'ink' },
+      { shape: 'box', at: [-6, 17.5, 0], size: [4, 6, 6], color: 'glass' },
+      { shape: 'box', at: [3, 25, 3], size: [4, 3, 6], color: 'paper' },
+      { shape: 'round', at: [4, 25, -4], r: 1.3, h: 1.5, color: 'red' },
     ],
   },
-  // Project 02: a rocket on its pad.
-  {
-    strike: [0, 2.5, -9],
-    parts: [
-      { shape: 'box', at: [0, 0, 0], size: [24, 2.5, 24], color: 'ink' },
-      { shape: 'round', at: [0, 2.5, 0], r: 5, h: 26, color: 'paper' },
-      { shape: 'box', at: [-7, 2.5, 0], size: [5, 9, 1.6], color: 'teal' },
-      { shape: 'box', at: [7, 2.5, 0], size: [5, 9, 1.6], color: 'teal' },
-      { shape: 'box', at: [0, 2.5, -7], size: [1.6, 9, 5], color: 'teal' },
-      { shape: 'box', at: [0, 2.5, 7], size: [1.6, 9, 5], color: 'teal' },
-      { shape: 'cone', at: [0, 28.5, 0], r: 5, h: 11, color: 'red' },
-    ],
-  },
-  // Project 03: a sailboat, side-on to the camera so its sails show.
-  {
-    strike: [0, 7.5, -10],
-    parts: [
-      { shape: 'box', at: [0, 0, 0], size: [12, 6, 32], color: 'amber' },
-      { shape: 'box', at: [0, 6, 0], size: [10, 1.5, 28], color: 'paper' },
-      { shape: 'round', at: [0, 7.5, -2], r: 1.1, h: 30, color: 'ink' },
-      { shape: 'sail', at: [0, 10, -2], pts: [[1, 0], [1, 26], [16, 0]], color: 'paper' },
-      { shape: 'sail', at: [0, 10, -2], pts: [[-1, 0], [-1, 22], [-12, 0]], color: 'glass' },
-      { shape: 'sail', at: [0, 37.5, -2], pts: [[0, 0], [0, -4], [6, -2]], color: 'red' },
-    ],
-  },
-  // Project 04: an arcade cabinet.
+  // Chiisai Games: an arcade cabinet.
   {
     strike: [3, 27, -3],
     parts: [
@@ -2616,15 +2907,55 @@ const MODELS = [
       { shape: 'round', at: [-8, 12, 5.5], r: 1.4, h: 1, color: 'red' },
     ],
   },
-  // Project 05: a camera on a tripod.
+  // TheWebsiteForge: a rocket on its pad.
   {
-    strike: [1, 25, -4],
+    strike: [0, 2.5, -9],
     parts: [
-      { shape: 'legs', at: [0, 0, 0], legs: [[-9, 0, -7], [-9, 0, 7], [9, 0, 0]], h: 16, color: 'ink' },
-      { shape: 'box', at: [1, 16, 0], size: [10, 9, 14], color: 'ink' },
-      { shape: 'box', at: [-6, 17.5, 0], size: [4, 6, 6], color: 'glass' },
-      { shape: 'box', at: [3, 25, 3], size: [4, 3, 6], color: 'paper' },
-      { shape: 'round', at: [4, 25, -4], r: 1.3, h: 1.5, color: 'red' },
+      { shape: 'box', at: [0, 0, 0], size: [24, 2.5, 24], color: 'ink' },
+      { shape: 'round', at: [0, 2.5, 0], r: 5, h: 26, color: 'paper' },
+      { shape: 'box', at: [-7, 2.5, 0], size: [5, 9, 1.6], color: 'teal' },
+      { shape: 'box', at: [7, 2.5, 0], size: [5, 9, 1.6], color: 'teal' },
+      { shape: 'box', at: [0, 2.5, -7], size: [1.6, 9, 5], color: 'teal' },
+      { shape: 'box', at: [0, 2.5, 7], size: [1.6, 9, 5], color: 'teal' },
+      { shape: 'cone', at: [0, 28.5, 0], r: 5, h: 11, color: 'red' },
+    ],
+  },
+  // PetPlus Workforce: a robot.
+  {
+    strike: [0, 31, -3],
+    parts: [
+      { shape: 'box', at: [0, 0, -4.5], size: [6, 9, 5], color: 'ink' },
+      { shape: 'box', at: [0, 0, 4.5], size: [6, 9, 5], color: 'ink' },
+      { shape: 'box', at: [0, 9, 0], size: [12, 13, 16], color: 'teal' },
+      { shape: 'box', at: [0, 10, -10.5], size: [5, 11, 4], color: 'amber' },
+      { shape: 'box', at: [0, 10, 10.5], size: [5, 11, 4], color: 'amber' },
+      { shape: 'box', at: [0, 22, 0], size: [10, 9, 10], color: 'paper', face: [0.3, 0.55, 0.7, 0.75] },
+      { shape: 'round', at: [0, 31, 0], r: 1, h: 7, color: 'red' },
+    ],
+  },
+  // Steady: a sailboat, side-on to the camera so its sails show.
+  {
+    strike: [0, 7.5, -10],
+    parts: [
+      { shape: 'box', at: [0, 0, 0], size: [12, 6, 32], color: 'amber' },
+      { shape: 'box', at: [0, 6, 0], size: [10, 1.5, 28], color: 'paper' },
+      { shape: 'round', at: [0, 7.5, -2], r: 1.1, h: 30, color: 'ink' },
+      { shape: 'sail', at: [0, 10, -2], pts: [[1, 0], [1, 26], [16, 0]], color: 'paper' },
+      { shape: 'sail', at: [0, 10, -2], pts: [[-1, 0], [-1, 22], [-12, 0]], color: 'glass' },
+      { shape: 'sail', at: [0, 37.5, -2], pts: [[0, 0], [0, -4], [6, -2]], color: 'red' },
+    ],
+  },
+  // SIN Esports: a trophy, black and red below and gold above.
+  {
+    strike: [0, 4, -6],
+    parts: [
+      { shape: 'box', at: [0, 0, 0], size: [14, 4, 14], color: 'ink' },
+      { shape: 'box', at: [0, 4, 0], size: [10, 5, 10], color: 'red', face: [0.22, 0.3, 0.78, 0.72] },
+      { shape: 'round', at: [0, 9, 0], r: 1.4, h: 6, color: 'amber' },
+      { shape: 'round', at: [0, 15, 0], r: 3, h: 1.6, color: 'amber' },
+      { shape: 'round', at: [0, 16.6, 0], r: 6.5, h: 10, color: 'amber' },
+      { shape: 'box', at: [0, 19, -7.3], size: [2, 6, 2], color: 'amber' },
+      { shape: 'box', at: [0, 19, 7.3], size: [2, 6, 2], color: 'amber' },
     ],
   },
 ];
@@ -3098,26 +3429,38 @@ const TOWER = {
   banner: [-40, 200], // the poles the summit banner hangs between; the flag tops the first
 };
 
-// Experience is the railway line (see the experience line); ?experience=tower
-// brings back this rooftop course instead.
-const TOWER_MODE = new URLSearchParams(location.search).get('experience') === 'tower';
+// Experience is the chalkboard (chalkboard.js); ?experience=line brings back
+// the railway line (see the experience line) and ?experience=tower this
+// rooftop course.
+const EXPERIENCE_MODE = new URLSearchParams(location.search).get('experience');
+const TOWER_MODE = EXPERIENCE_MODE === 'tower';
+const LINE_MODE = EXPERIENCE_MODE === 'line';
+const BOARD_MODE = !TOWER_MODE && !LINE_MODE;
 
 // The levels, bottom to top, are his career so far. `from` and `to` are
 // [year, month] and space the line's stations; the 2025 month is a guess.
+// `say` is what he says as he writes it on the Experience chalkboard, a
+// line to each span, and `result` what he chalks under its bar, smaller and
+// in yellow (chalkboard.js).
 const CAREER = [
   {
-    dates: '2020 – 2022', from: [2020, 1], to: [2022, 1],
+    dates: '2020 - Present', from: [2020, 1], to: null,
     title: ['Web & UI/UX', 'Developer'], note: 'Freelance',
+    say: ['2020. I started building websites,', 'then fell for UI/UX on the way.'],
     summary: 'Building websites and web apps since 2020, shifting focus in 2022 to high-polish UI/UX design. Designing clean, custom front-end interfaces that look great for users and are easy for other developers to work with.',
   },
   {
-    dates: '2022 – 2025', from: [2022, 1], to: [2025, 1],
+    dates: '2022 - 2025', from: [2022, 1], to: [2025, 1],
     title: ['Infrastructure', 'Engineer'], note: 'Pet Plus',
+    say: ['Pet Plus, 2022. I set up their IT', 'and their code from scratch.'],
+    result: 'First Lightspeed to Shopify sync',
     summary: 'Set up core IT infrastructure and code repos from scratch. Led the first automated synchronization between Lightspeed POS and Shopify, and negotiated partner API integrations.',
   },
   {
-    dates: '2025 – Present', from: [2025, 1], to: null,
+    dates: '2025 - Present', from: [2025, 1], to: null,
     title: ['Systems', 'Engineer'], note: 'Pet Plus',
+    say: ['Now I build their systems.', 'Their shop loads in 1 second, not 40.'],
+    result: 'Shop loads in 1s, not 40s · $5,000+ saved',
     summary: 'Built custom in-house software saving $5,000+ (R82,200). Rebuilt company web storefront with Cloudflare DNS slashing LCP from 40s to ~1s, created Lightspeed financial dashboards, and developed DOM injection tools.',
   },
 ];
@@ -4005,7 +4348,7 @@ function hopOff() {
 
 // Runs the ride while he is at Experience, and his hop off when he leaves.
 function updateLine(dt, unit) {
-  if (TOWER_MODE) return;
+  if (!LINE_MODE) return;
   const h = handcar;
   const last = LINE.stops.length - 1;
   const carAt = (i) => LINE.stops[i] - CAR.stand;
@@ -4267,7 +4610,7 @@ function buildLine(svg) {
   path('line__axis', [[first, -6], [at(LINE.now), -6]],
     ...years.map((year) => [[at(year * 12), -2], [at(year * 12), -14]]),
     [[first, -2], [first, -12]]);
-  text('line__year', first, -30, CAREER[0].dates.split(' – ')[0].toUpperCase(), 'middle');
+  text('line__year', first, -30, CAREER[0].dates.split(' - ')[0].toUpperCase(), 'middle');
   for (const year of years) text('line__year', at(year * 12), -30, String(year), 'middle');
   path('line__axis line__axis--now', [[at(LINE.now), 0], [at(LINE.now), -16]]);
   text('line__year line__year--now', at(LINE.now), -30, 'NOW', 'middle');
@@ -4321,7 +4664,7 @@ function buildLine(svg) {
   };
   lineSigns = [...svg.querySelectorAll('.line__sign')];
 }
-if (!TOWER_MODE) document.fonts.ready.then(() => buildLine(document.querySelector('.experience-course-world')));
+if (LINE_MODE) document.fonts.ready.then(() => buildLine(document.querySelector('.experience-course-world')));
 
 // Moves the car and its moving parts, and drops each station's sign once he
 // has reached it.
@@ -4491,11 +4834,14 @@ function buildCamp() {
     pine(p, 's-tree', -575, 470);
     pine(p, 's-tree', 450, 420);
     // A ridge tent, its door open towards the fire, and its guy lines.
+    // living: the tent snores when clicked (clickables.js).
     const t = -300;
     p.line('s-thin', [[t, 150], [t - 150, 0]], [[t, 150], [t + 140, 0]]);
+    p.open('class="s-tent"');
     p.poly('s-paper', [[t - 96, 0], [t, 150], [t + 92, 0]]);
     p.poly('s-dark', [[t + 6, 0], [t + 24, 96], [t + 56, 0]]);
     p.line('s-edge', [[t + 24, 96], [t + 66, 0]], [[t, 150], [t, 164]]);
+    p.close();
     // A lantern on a hooked pole by the tent. living: a fixture, which can
     // go out and be tapped back on (living.js, the incidents).
     const l = -170;
@@ -4507,14 +4853,37 @@ function buildCamp() {
     p.line('s-sparks', [[l + 16, 186], [l + 10, 192]], [[l + 44, 186], [l + 50, 192]], [[l + 30, 190], [l + 30, 196]]);
     p.close();
     // Firewood stacked beyond the fire, and a stump with an axe in it.
+    // living: he splits more when the axe is clicked, and the pile grows
+    // onto the spare places, one a split (clickables.js, CLICK_SPARES).
     for (const [x, y] of [[300, 11], [322, 11], [344, 11], [311, 31], [333, 31], [322, 51]]) {
       p.circle('s-paper', x, y, 11);
       p.circle('s-thin', x, y, 4);
     }
+    [[278, 11], [366, 11], [289, 31], [355, 31], [300, 51], [344, 51]].forEach(([x, y], i) => {
+      p.open(`class="s-spare" data-spare="${i}"`);
+      p.circle('s-paper', x, y, 11);
+      p.circle('s-thin', x, y, 4);
+      p.close();
+    });
     p.rect('s-paper', 382, 0, 418, 34);
     p.line('s-thin', [[388, 34], [412, 34]]);
-    p.line('s-edge', [[400, 34], [428, 84]]);
-    p.poly('s-dark', [[392, 30], [404, 44], [414, 36], [406, 26]]);
+    // living: a round set on the stump to split, and its halves, shown
+    // while he chops (clickables.js).
+    p.open('class="s-block"');
+    p.rect('s-paper', 384, 34, 408, 58, 2);
+    p.line('s-thin', [[390, 38], [390, 54]], [[402, 38], [402, 54]]);
+    p.close();
+    [[384, 396], [396, 408]].forEach(([x0, x1], i) => {
+      p.open(`class="s-half" data-half="${i}"`);
+      p.rect('s-paper', x0, 34, x1, 58, 2);
+      p.close();
+    });
+    // The axe, its handle leaning back towards whoever will chop, drawn
+    // from its grip as the one he holds is (index.html, .prop-axe).
+    p.open('class="s-axe" transform="translate(389.3 -86) rotate(165)"');
+    p.line('s-edge', [[0, -10], [0, 56]]);
+    p.poly('s-dark', [[-6, 58], [8, 58], [20, 64], [20, 40], [8, 46], [-6, 46]]);
+    p.close();
     tufts(p, -640, 640, 3);
   });
 }
@@ -4537,13 +4906,21 @@ function buildShop() {
     const holes = [];
     for (let y = 142; y < 272; y += 16) for (let x = 6; x < 248; x += 16) holes.push([[x, y], [x, y + 0.1]]);
     p.line('s-holes', ...holes);
+    // living: the saw, hammer, spanner and level come down when clicked
+    // (clickables.js), each drawn again in his hand (index.html, .prop-tool).
+    p.open('class="s-tool" data-tool="saw"');
     p.rect('s-paper', 8, 234, 32, 262, 5); // the saw
     p.poly('s-paper', [[32, 258], [98, 252], [98, 244], [32, 236]]);
     p.line('s-thin', [[40, 237], [96, 244]]);
+    p.close();
+    p.open('class="s-tool" data-tool="hammer"');
     p.line('s-edge', [[124, 150], [124, 232]]); // the hammer
     p.poly('s-paper', [[106, 232], [140, 232], [146, 240], [140, 246], [106, 246]]);
+    p.close();
+    p.open('class="s-tool" data-tool="spanner"');
     p.line('s-edge', [[160, 162], [178, 236]]); // the spanner
     p.circle('s-paper', 180, 244, 9);
+    p.close();
     p.rect('s-dark', 196, 212, 206, 240, 2); // screwdrivers
     p.line('s-edge', [[201, 212], [201, 184]]);
     p.rect('s-amber', 214, 218, 224, 244, 2);
@@ -4552,8 +4929,10 @@ function buildShop() {
     p.circle('s-edge', 226, 160, 10);
     p.line('s-edge', [[238, 150], [246, 138]]);
     p.rect('s-paper', 243, 128, 251, 138, 1);
+    p.open('class="s-tool" data-tool="level"');
     p.rect('s-paper', 14, 140, 100, 152, 2); // a spirit level
     p.rect('s-amber', 52, 143, 62, 149, 2);
+    p.close();
     // Shelves with jars and tins.
     p.line('s-edge', [[266, 196], [376, 196]], [[266, 252], [376, 252]], [[272, 196], [284, 184]], [[370, 196], [358, 184]]);
     for (const [x, w, h] of [[276, 18, 26], [300, 22, 34], [328, 16, 20], [350, 20, 28]]) {
@@ -4600,10 +4979,22 @@ function buildOps() {
     p.open('data-fixture="fixed-count"');
     p.text('s-readout s-readout--fixed', -98, 244, ' ', 'start');
     p.close();
+    // living: how many of the things that answer a click they've found
+    // (clickables.js).
+    p.open('data-fixture="found-count"');
+    p.text('s-readout s-readout--found', -98, 325, ' ', 'start');
+    p.close();
     light(4, 318, 3, '--led: #7fd08f; --d: 2.4s; --delay: -0.4s');
-    // A clock over the monitor.
+    // A clock over the monitor. living: its hands keep the world's time,
+    // and a click on it turns the day on (clickables.js).
     p.circle('s-paper', 120, 404, 20);
-    p.line('s-edge', [[120, 404], [120, 418]], [[120, 404], [130, 398]]);
+    p.open('class="s-hand s-hand--hour"');
+    p.line('s-edge', [[120, 404], [120, 416]]);
+    p.close();
+    p.open('class="s-hand s-hand--minute"');
+    p.line('s-edge', [[120, 404], [120, 421]]);
+    p.close();
+    p.circle('s-ink', 120, 404, 2.2);
     // The cable tray, and cables dropping to the racks and the console.
     const rungs = [];
     for (let x = -40; x <= 590; x += 22) rungs.push([[x, 426], [x, 440]]);
@@ -4706,7 +5097,7 @@ document.fonts.ready.then(buildSurroundings);
    it comes into view as he goes - and on to the campfire. */
 
 const NAME = 'NAEEM BROWN';
-const NAME_ROLE = 'SYSTEMS & INFRASTRUCTURE ENGINEER'; // cut into the plinth
+const NAME_ROLE = 'UX DESIGNER & WEB DEVELOPER'; // cut into the plinth
 const LETTER_TALL = 280; // units; he is 242
 const LETTER_GAP = 34;
 const PLINTH = 40;
@@ -4758,7 +5149,9 @@ const STATUE = (() => {
   const out = [];
   out.push(`<rect class="statue__plinth" x="-40" y="${-PLINTH}" width="${width + 80}" height="${PLINTH}" />`);
   out.push(`<rect class="statue__ledge" x="-48" y="${-PLINTH - 8}" width="${width + 96}" height="10" />`);
-  out.push(`<text class="statue__engraving" x="${width / 2}" y="-12" text-anchor="middle">${NAME_ROLE.replace(/&/g, '&amp;')}</text>`);
+  // What he does, cut in under the N and A, where the camera looks all
+  // through the opening, rather than under the middle, off the screen.
+  out.push(`<text class="statue__engraving" x="14" y="-12">${NAME_ROLE.replace(/&/g, '&amp;')}</text>`);
   letters.forEach((letter, i) => {
     const broken = letter.ch === 'N' && i === 0;
     out.push(`<g transform="translate(${letter.x} ${-PLINTH - 8 - LETTER_TALL})">`);
@@ -4795,6 +5188,16 @@ world.style.setProperty('--name-end', `${campX - NAME_TO_CAMP}px`);
 const nameEnd = campX - NAME_TO_CAMP;
 const nameStart = (unit) => nameEnd - STATUE.width * unit;
 
+// The statue is several screens wide on a phone, so there his name and role
+// are also written under the floor while any of it is in view (the caption
+// in index.html, shown only on narrow screens by styles.css).
+const nameCaption = document.querySelector('.name-caption');
+if (nameCaption && 'IntersectionObserver' in window) {
+  new IntersectionObserver(([entry]) => {
+    nameCaption.classList.toggle('is-shown', entry.isIntersecting);
+  }).observe(statueSvg);
+}
+
 // The N's pieces, `k` of the way from broken back to whole, with a little
 // overshoot as they snap into place.
 function setN(k) {
@@ -4808,10 +5211,10 @@ function setN(k) {
 }
 
 // The code he writes in the opening, in highlighted pieces: comment,
-// selector or name, keyword or property, value and punctuation. The editor
-// types each file out as he types, and he sends each somewhere with Enter:
-// the sound button up to the navbar, the controls down to the floor, and
-// the fix into the N.
+// selector or name, keyword or property, value and punctuation. He types
+// each file into the code editor on his laptop, seen from behind him, and
+// sends each somewhere with Enter: the sound button up to the navbar, the
+// controls down to the floor, and the fix into the N.
 const FIX_CODE = [
   ['/* straighten the N */', 'c'], ['\n', ''],
   ['.statue .letter-n', 's'], [' {', 'p'], ['\n  ', ''],
@@ -4838,53 +5241,74 @@ const codeLength = (code) => code.reduce((sum, [text]) => sum + text.length, 0);
 const FIX_LENGTH = codeLength(FIX_CODE);
 const CONTROLS_LENGTH = codeLength(CONTROLS_CODE);
 const SOUND_ASKED = codeLength(soundCode('').slice(0, 8)); // up to where he stops to ask
-const editor = document.querySelector('.intro-editor');
-const editorCode = editor?.querySelector('code');
-const editorTitle = editor?.querySelector('.intro-editor__bar span');
-let editorFile = { name: 'name.css', code: FIX_CODE };
+
+// The laptop's screen (.lap-screen): the desktop he wakes it to, and the
+// code editor, with its files down the side, a tab for each he opens and
+// the file he is on, typing out as he types.
+const lapScreen = document.querySelector('.lap-screen');
+const lapApp = lapScreen.querySelector('.lap-screen__app');
+const editorCode = lapScreen.querySelector('.vsc__code');
+const editorTabs = lapScreen.querySelector('.vsc__tabs');
+const editorFiles = [...lapScreen.querySelectorAll('.vsc__files [data-file]')];
+const editorTitle = lapScreen.querySelector('.vsc__title span');
+const editorWhere = lapScreen.querySelector('.vsc__where');
+const editorLang = lapScreen.querySelector('.vsc__lang');
+let editorFile = { name: '', code: [] };
 let editorShown = -1;
 
 // Shows the first `count` characters of the open file, highlighted,
-// numbered and with the caret after them.
+// numbered and with the caret after them, and where the caret is.
 function typeCode(count) {
-  if (!editorCode || count === editorShown) return;
+  if (count === editorShown) return;
   editorShown = count;
   const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   let left = count;
   let html = '';
+  let typed = '';
   for (const [text, kind] of editorFile.code) {
     if (left <= 0) break;
     const shown = text.slice(0, left);
     left -= shown.length;
-    html += kind ? `<span class="tk-${kind}">${escape(shown)}</span>` : shown;
+    typed += shown;
+    const tint = kind === 'v' && text.startsWith("'") ? 'q' : kind; // a string
+    html += kind ? `<span class="tk-${tint}">${escape(shown)}</span>` : shown;
   }
-  const lines = `${html}<span class="intro-editor__caret"></span>`.split('\n');
-  editorCode.innerHTML = lines
-    .map((line, i) => `<span class="intro-editor__line"><span class="intro-editor__number">${i + 1}</span>${line}</span>`)
-    .join('\n');
+  const lines = `${html}<span class="vsc__caret"></span>`.split('\n');
+  editorCode.firstElementChild.innerHTML = lines
+    .map((line, i) => `<span class="vsc__line${i === lines.length - 1 ? ' is-current' : ''}"><span class="vsc__number">${i + 1}</span>${line}</span>`)
+    .join('');
+  const rows = typed.split('\n');
+  editorWhere.textContent = `Ln ${rows.length}, Col ${rows[rows.length - 1].length + 1}`;
 }
 
-// Puts a file up in the editor; a new one pops up afresh.
+// Puts a file up in the editor. A new one opens in a tab of its own, and
+// is picked out in the files down the side.
 function openFile(name, code) {
-  if (!editor || (editorFile.name === name && editorFile.code === code)) return;
+  if (editorFile.name === name && editorFile.code === code) return;
   const fresh = editorFile.name !== name;
   editorFile = { name, code };
   editorShown = -1;
   if (!fresh) return;
-  editorTitle.textContent = name;
-  intro.sent = false;
-  editor.classList.remove('is-applied', 'is-sent');
-  editor.style.animation = 'none';
-  void editor.offsetWidth; // so the pop plays again
-  editor.style.animation = '';
+  const css = name.endsWith('.css');
+  editorCode.classList.toggle('is-css', css);
+  editorLang.textContent = css ? 'CSS' : 'JavaScript';
+  editorTitle.textContent = `${name} · portfolio`;
+  if (!editorTabs.querySelector(`[data-file="${name}"]`)) {
+    const tab = document.createElement('span');
+    tab.className = 'vsc__tab';
+    tab.dataset.file = name;
+    tab.textContent = name;
+    editorTabs.append(tab);
+  }
+  editorTabs.querySelectorAll('.vsc__tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.file === name));
+  editorFiles.forEach((file) => file.classList.toggle('is-active', file.dataset.file === name));
+  lapScreen.classList.remove('is-applied');
 }
 
 const laptop = document.querySelector('.laptop');
 const laptopLid = laptop.querySelector('.laptop__lid');
-const laptopFace = laptop.querySelector('.laptop__face');
 const laptopHalo = laptop.querySelector('.laptop__halo');
-const laptopLines = [...laptop.querySelectorAll('.laptop__code')];
-const LID = { hinge: [22, 0], across: [18, -14], length: 34, open: 80 }; // in laptop units
+const LID = { hinge: [22, 0], across: [18, -14], length: 34, open: 104 }; // in laptop units; open, degrees from shut
 
 // His laptop bag, in rig units, placed by the middle of its top. It hangs
 // from his shoulder BAG.hang off it, by a strap from a ring at its front
@@ -5040,16 +5464,16 @@ function landTool(el, bounce) {
   el.addEventListener('animationend', () => el.classList.remove('is-landing'), { once: true });
 }
 
-// Enter on the sound file: the button pops up out of the editor, which
-// flinches, hangs there a beat, then shoots off in a curve to its place in
-// the navbar, stretching as it goes, and lands with a pulse.
+// Enter on the sound file: the button pops up out of his laptop's screen,
+// hangs there a beat, then shoots off in a curve to its place in the
+// navbar, stretching as it goes, and lands with a pulse.
 function shootSoundButton() {
-  if (!soundToggleBtn || !editor) return;
+  if (!soundToggleBtn) return;
   const copy = flyer(soundToggleBtn);
   document.body.append(copy);
-  const box = editor.getBoundingClientRect();
+  const box = lapScreen.getBoundingClientRect();
   const to = soundToggleBtn.getBoundingClientRect();
-  const start = [box.right - 48, box.top + 14];
+  const start = [box.left + 0.72 * box.width, box.top + 0.3 * box.height];
   const up = [start[0] - 12, start[1] - 50];
   const end = [to.left + to.width / 2, to.top + to.height / 2];
   const bend = [mix(up[0], end[0], 0.3), Math.min(up[1], end[1]) - 90];
@@ -5066,8 +5490,6 @@ function shootSoundButton() {
   const duration = 1100;
   const flight = animateAlong(copy, at, { duration });
   trail(copy, at, duration, document.body, 0.36, 0.93);
-  editor.classList.add('is-kicked');
-  editor.addEventListener('animationend', () => editor.classList.remove('is-kicked'), { once: true });
   sfx.pop();
   window.setTimeout(() => flights.has(copy) && sfx.whoosh(0.75), 0.27 * duration);
   flight.onfinish = () => {
@@ -5085,7 +5507,7 @@ function shootSoundButton() {
 const EDGE = 1.8; // px on screen
 const capsuleEdge = (edge, ink = 0.8) => ({ borderWidth: `${edge.toFixed(2)}px`, borderColor: `rgba(32, 32, 31, ${ink.toFixed(3)})` });
 
-// Enter on the controls: they fall out of the editor onto the floor ahead.
+// Enter on the controls: they drop onto the floor ahead of him.
 function dropCapsule() {
   if (!controlsHint) return;
   const el = flyer(controlsHint);
@@ -5192,7 +5614,7 @@ const ASK_WAIT = 12; // seconds he waits to be told about sound, before going on
 const HELLO = { hi: 1.5, sec: 3.1, ask: 5.3 };
 const INTRO = [
   ['enter', 0, 'walk'],
-  ['sit1', 0.6, 'sit'], ['fetch1', 0.75, 'fetch'], ['open1', 0.3, 'open'],
+  ['sit1', 0.6, 'sit'], ['fetch1', 0.75, 'fetch'], ['open1', 0.3, 'open'], ['launch1', 1.5, 'launch'],
   ['code1', 1.4, 'type'], ['ask', 0.45, 'look'], ['code2', 0.9, 'type'],
   ['wind1', 0.3, 'wind'], ['slam1', 0.14, 'slam'], ['sent1', 0.75, 'hold'],
   ['code3', 1.6, 'type'], ['wind2', 0.3, 'wind'], ['slam2', 0.14, 'slam'], ['sent2', 0.9, 'hold'],
@@ -5200,19 +5622,21 @@ const INTRO = [
   ['step', 0.5, 'walk'], ['kick', 0.4, 'kick'], ['catch', 0.5, 'catch'], ['toss', 0.8, 'toss'],
   ['brush', 0.5, 'brush'], ['walk', 0, 'walk'],
   ['ponder', 0.8, 'ponder'], ['sit', 0.6, 'sit'], ['fetch', 0.75, 'fetch'], ['open', 0.3, 'open'],
-  ['type', 1.7, 'type'], ['look', 0.7, 'look'], ['rush', 1.0, 'type'],
+  ['launch', 0.7, 'launch'], ['type', 1.7, 'type'], ['look', 0.7, 'look'], ['rush', 1.0, 'type'],
   ['windup', 0.35, 'wind'], ['slam', 0.14, 'slam'], ['react', 1.3, 'react'],
   ['close', 0.3, 'shut'], ['stow', 0.55, 'stow'], ['rise', 0.6, 'rise'], ['present', 1.0, 'present'],
 ];
 const INTRO_INDEX = Object.fromEntries(INTRO.map(([name], i) => [name, i]));
 // What the opening leaves out without the controls.
 const CONTROLS_ONLY = new Set(['code3', 'wind2', 'slam2', 'sent2', 'shut1', 'stow1', 'rise1', 'step', 'kick',
-  'catch', 'toss', 'brush', 'walk', 'ponder', 'sit', 'fetch', 'open']);
+  'catch', 'toss', 'brush', 'walk', 'ponder', 'sit', 'fetch', 'open', 'launch']);
 const KICKED = 0.62; // how far through the kick his foot comes down on the controls
 const DIP = 0.3; // how far through the toss he has dipped, ready to swing
 const SWUNG = 0.58; // and has swung his arm up and over
 const TOSSED = 0.56; // and lets go of them
 const CATCH = [120, 112]; // where he catches them, inside the bob
+const CLICK = 0.42; // seconds into starting the code editor, or opening a file, that he clicks
+const LAUNCH_FILE = 1.05; // and, starting the editor, that the sound file opens in it
 const INTRO_AT = {};
 const INTRO_LEN = {};
 let introLength = 0;
@@ -5230,7 +5654,6 @@ const intro = {
   capsuleAt: 0, // when the controls dropped
   thrown: false,
   fixAt: null, // when the N started snapping back
-  sent: false, // the editor has been sent off
   keys: 0, // characters typed, for the key clicks
   steps: null, // steps walked, for the footfalls
   here: null, // where he is in it, this frame
@@ -5393,6 +5816,14 @@ function seatedAt(t, base, name, kind, s, out) {
     out.bag.flap = Math.sin(Math.PI * clamp(s / 0.6, 0, 1));
   } else if (kind === 'open') {
     lid = ease(s);
+  } else if (kind === 'launch') {
+    // A hand over to the trackpad and a click, to start the code editor or
+    // open a file in it, then back to the keys.
+    const since = s * INTRO_LEN[name];
+    const pad = onLaptop(lap, -4, -7);
+    const over = ease(clamp(since / CLICK, 0, 1)) * (1 - ease(clamp((since - CLICK - 0.08) / 0.2, 0, 1)));
+    const press = 1.6 * Math.sin(Math.PI * clamp((since - CLICK + 0.04) / 0.08, 0, 1));
+    near = lerp2(keys[1], [pad[0], pad[1] + press], over);
   } else if (kind === 'type') {
     // Typing, and faster when he rushes the end of the fix.
     const speed = name === 'rush' ? 11 : name === 'type' ? 8 : 9;
@@ -5435,7 +5866,7 @@ function seatedAt(t, base, name, kind, s, out) {
     Object.assign(p.far, armReach(p.lean, far[0], far[1]));
   }
   const bump = kind === 'hold' || kind === 'react' ? 3 * Math.max(0, 1 - s * 4) : 0;
-  out.computer = at && { at, lid, bump, lap, hand: at === 'hand' ? near : null };
+  out.computer = at && { at, lid, bump, lap, keys, hand: at === 'hand' ? near : null };
   out.bag.seat = 1;
   out.bag.off = 1;
   out.hands = true;
@@ -5588,9 +6019,13 @@ function introAt(t, base) {
   return out;
 }
 
-// Sets the laptop in his hand or on his lap, its lid `lid` of the way open,
-// and as many lines of code on the screen as he has typed.
-function placeLaptop(computer, typed = 0) {
+// How lit its screen is, the lid `lid` of the way open.
+function screenLight(lid) {
+  return clamp((lid - 0.35) / 0.45, 0, 1);
+}
+
+// Sets the laptop in his hand or on his lap, its lid `lid` of the way open.
+function placeLaptop(computer) {
   laptop.toggleAttribute('hidden', !computer);
   if (!computer) return;
   const { lap } = computer;
@@ -5604,12 +6039,7 @@ function placeLaptop(computer, typed = 0) {
   const up = [-LID.length * Math.cos(a), -LID.length * Math.sin(a)];
   laptopLid.setAttribute('transform',
     `matrix(${LID.across[0]} ${LID.across[1]} ${up[0].toFixed(2)} ${up[1].toFixed(2)} ${LID.hinge[0]} ${LID.hinge[1]})`);
-  const open = clamp((computer.lid - 0.35) / 0.45, 0, 1);
-  laptopFace.style.opacity = open.toFixed(3);
-  laptopHalo.style.opacity = open.toFixed(3);
-  laptopLines.forEach((line, i) => {
-    line.style.opacity = typed * laptopLines.length > i ? '1' : '0';
-  });
+  laptopHalo.style.opacity = screenLight(computer.lid).toFixed(3);
 }
 
 // Runs the opening: returns his pose and place while it plays, and eases
@@ -5649,7 +6079,7 @@ function drawStart(dt, now, base, unit) {
   // What he says, bubble by bubble.
   // With the controls, he says who he is once they have landed.
   const welcome = intro.controls ? INTRO_AT.walk + 0.35 : INTRO_AT.type;
-  if (passed(INTRO_AT.enter + HELLO.hi)) speak('<span>Hi there!</span>');
+  if (passed(INTRO_AT.enter + HELLO.hi)) speak('<span>Hi, I’m Naeem!</span>');
   if (passed(INTRO_AT.enter + HELLO.sec)) speak('<span>Give me a sec,</span><span>gotta sort something out first.</span>');
   if (passed(INTRO_AT.ask + 0.05)) speak(SOUND_QUESTION);
   if (intro.controls && passed(INTRO_AT.code3 + 0.1)) speak('<span>Almost done&hellip;</span>');
@@ -5658,12 +6088,19 @@ function drawStart(dt, now, base, unit) {
   if (passed(welcome + 3.6)) hushSpeech();
   if (passed(INTRO_AT.present + 0.1)) speak('<span>Have a look around!</span>');
 
-  // The editor is up while the lid is: the sound file, then the controls,
-  // then, after he has walked over, the fix. Each types out as he types.
-  const file = t < INTRO_AT.code3 ? 'sound' : t < INTRO_AT.shut1 ? 'controls' : 'name';
+  // On the laptop's screen: the desktop, until he clicks to start the code
+  // editor; then the sound file, the controls, and, after he has walked
+  // over and opened the lid again, the fix. Each types out as he types.
+  const started = INTRO_AT.launch1 + CLICK;
+  const fixing = intro.controls ? INTRO_AT.launch + CLICK : INTRO_AT.code3;
+  const file = t < INTRO_AT.launch1 + LAUNCH_FILE ? null : t < INTRO_AT.code3 ? 'sound' : t < fixing ? 'controls' : 'name';
   if (file === 'sound') openFile('sound.js', intro.soundCode);
   else if (file === 'controls') openFile('controls.css', CONTROLS_CODE);
-  else openFile('name.css', FIX_CODE);
+  else if (file === 'name') openFile('name.css', FIX_CODE);
+  lapApp.classList.toggle('is-clicked', t >= started && t < started + 0.5);
+  lapScreen.classList.toggle('is-app', t >= started + 0.06);
+  if (passed(started) || (intro.controls && passed(fixing))) sfx.tick();
+  if (passed(started + 0.06)) sfx.whoosh(0.3);
   const typed = file === 'sound'
     ? (t < INTRO_AT.code2 ? SOUND_ASKED * through('code1', t) : mix(SOUND_ASKED, codeLength(intro.soundCode), through('code2', t)))
     : file === 'controls'
@@ -5671,24 +6108,19 @@ function drawStart(dt, now, base, unit) {
       // The fix: most of it, a pause while he looks up at the N, then the rest.
       : FIX_LENGTH * (t < INTRO_AT.look ? 0.62 * through('type', t) : t < INTRO_AT.rush ? 0.62 : mix(0.62, 1, through('rush', t)));
   const count = Math.round(typed);
-  showEditor((t >= INTRO_AT.open1 + 0.2 && t < INTRO_AT.shut1) || (t >= INTRO_AT.open + 0.2 && t < INTRO_AT.close));
-  typeCode(count);
-  placeLaptop(here.computer, count / codeLength(editorFile.code));
+  if (file) typeCode(count);
+  placeLaptop(here.computer);
   if (count > intro.keys) sfx.key();
   intro.keys = count;
 
-  // Enter sends each file off: the sound button up to the navbar, the
+  // Enter sends each file off: the sound button up out of the screen to the
+  // navbar, and, once the camera has swung back out to the side, the
   // controls down to the floor ahead of him, and the fix into the N, which
-  // snaps back together as it lands.
+  // snaps back together.
   if (passed(INTRO_AT.sent1)) applyEditor();
   if (passed(INTRO_AT.sent1 + 0.12)) shootSoundButton();
   if (intro.controls) {
     if (passed(INTRO_AT.sent2)) applyEditor();
-    if (passed(INTRO_AT.sent2 + 0.25)) {
-      // It shrinks away to where they fall from.
-      const [x, y] = capsuleSpot(unit, state.introShift);
-      sendEditor([x, y - DROP.from * unit]);
-    }
     if (passed(INTRO_AT.sent2 + 0.6)) {
       dropCapsule();
       intro.capsuleAt = t;
@@ -5702,7 +6134,6 @@ function drawStart(dt, now, base, unit) {
     if (passed(popAt + POP)) sfx.key();
   }
   if (passed(INTRO_AT.react)) applyEditor();
-  if (passed(INTRO_AT.react + 0.3)) sendEditor(nSpot(unit));
   if (passed(INTRO_AT.react + 0.72)) fixN(unit);
 
   const during = (name, k) => INTRO_LEN[name] > 0 && passed(INTRO_AT[name] + k * INTRO_LEN[name]);
@@ -5799,43 +6230,291 @@ function drawStartProps(p, flip, unit, camera, walkingOn) {
   placeCapsule(capsule.last, clamp((t - intro.capsuleAt) * 12, 0, 1));
 }
 
-// The editor sits over him, kept on screen.
-function showEditor(shown) {
-  if (!editor) return;
-  if (editor.hidden === shown) {
-    editor.hidden = !shown;
-    editor.classList.remove('is-applied', 'is-sent');
-    intro.sent = false;
-  }
-  if (!shown || intro.sent) return;
-  const width = editor.offsetWidth;
-  const middle = sceneWidth / 2 + state.introShift + intro.dxPx;
-  editor.style.left = `${clamp(middle - width * 0.62, 12, sceneWidth - width - 12).toFixed(1)}px`;
-}
-
-// Enter: the file is applied, with a click and a chime.
+// Enter: the file goes in, with a click and a chime, and the editor's
+// status bar says so.
 function applyEditor() {
-  editor?.classList.add('is-applied');
+  lapScreen.classList.add('is-applied');
   sfx.key();
   sfx.chime(0.05);
 }
 
-// Sends the editor off to [x, y] on screen, shrinking away as it goes.
-function sendEditor([x, y]) {
-  if (!editor || editor.hidden) return;
-  intro.sent = true;
-  const box = editor.getBoundingClientRect();
-  const sceneBox = scene.getBoundingClientRect();
-  editor.style.setProperty('--to-x', `${(x - (box.left - sceneBox.left + box.width / 2)).toFixed(1)}px`);
-  editor.style.setProperty('--to-y', `${(y - (box.top - sceneBox.top + box.height / 2)).toFixed(1)}px`);
-  editor.classList.add('is-sent');
+/* ------------------------------------------------ the opening, from behind
+   While he sits at his laptop the camera comes round behind him and over his
+   shoulder, as it does at the Projects bench and the Skills console, so you
+   see the back of his head and what is on his screen: the laptop waking, the
+   code editor opening, and the code going in as he types it. It swings back
+   out to the side for what the code does in the world: the controls dropping
+   to the floor, and the N. Drawn in rig units from the floor under his hip:
+   x the way he faces, y up and z towards the side the world is seen from. */
+const LAP_IN = 1.1; // seconds for the camera to come round behind him
+const LAP_OUT = 0.8; // and to swing back out
+const LAP_YAW = 126; // degrees round: behind him, over his left shoulder
+const LAP_PITCH = 38; // degrees it looks down over his head
+const LAP_DISTANCE = 460; // units from the screen once round
+// The laptop, in 3D: its deck's depth, half its width and its thickness;
+// how far its keys sit above his lap as the side view draws it (turned
+// towards you there, it looks higher); its lid's length and thickness, the
+// bezel round the screen and the wider strip below it; and how far it
+// opens, in degrees from shut.
+const LAP3 = { deep: 34, half: 30, thick: 2.4, lift: 5, lid: 36, lidThick: 1.2, bezel: 1.6, chin: 2.8, open: 112 };
+// From behind, his hands sit side by side on the keys, this far either side
+// of the middle and this far back from the hinge.
+const LAP_KEYS = { z: 11, back: 14 };
+// And he leans a little to his right, this far out per unit up from his hip,
+// so his head is by the screen rather than over it. Side on, it does not
+// show.
+const LAP_LEAN = 0.18;
+
+const lapCam = document.querySelector('.lap-cam');
+const lapLayer = lapCam.querySelector('.lap-cam__model');
+const lapFigureSvg = document.querySelector('.lap-figure');
+const lapRig = (() => {
+  const group = lapFigureSvg.querySelector('.bench-cam__figure');
+  return {
+    group,
+    parts: Object.fromEntries([...group.querySelectorAll('[data-part]')].map((el) => [el.dataset.part, el])),
+    fade: group.querySelector('linearGradient'),
+    order: '',
+    hand: 1.6,
+  };
+})();
+// The laptop's pieces, drawn farthest first from behind him.
+const lapParts = Object.fromEntries([
+  ['shadow', 'bench-cam__shadow'], ['lid', 'bench-cam__body lap-cam__alu'], ['glass', 'lap-cam__glass'],
+  ['deck', 'bench-cam__body lap-cam__alu'], ['keys', 'lap-cam__keys'],
+  ['bag', 'bench-cam__body lap-cam__bag'], ['flap', 'lap-cam__flap'],
+].map(([name, cls]) => {
+  const el = document.createElementNS(SVG_NS, 'path');
+  el.setAttribute('class', cls);
+  lapLayer.append(el);
+  return [name, el];
+}));
+// The final framing and the screen's size, worked out once for the screen
+// size; the laptop's middle, which the camera swings about; and his head on
+// screen, for the bubble.
+const lapView = { shot: null, size: null, pivot: null, head: null };
+window.addEventListener('resize', () => {
+  lapView.shot = null;
+  lapView.size = null;
+});
+
+// How far round behind him the camera is, 0 to 1, `t` seconds into the
+// opening: it comes in as the lid goes up, and goes out as he winds up to hit
+// Enter on something that has to be seen in the world. With no controls to
+// make, he stays at the laptop from the sound to the N.
+function lapRound(t) {
+  const round = (from, to) => Math.min(clamp((t - from) / LAP_IN, 0, 1), 1 - clamp((t - to) / LAP_OUT, 0, 1));
+  if (!intro.controls) return round(INTRO_AT.open1, INTRO_AT.windup);
+  return Math.max(round(INTRO_AT.open1, INTRO_AT.wind2), round(INTRO_AT.open, INTRO_AT.windup));
 }
 
-// The middle of the N, on screen.
-const nSpot = (unit) => [
-  sceneWidth / 2 + state.introShift + (nameStart(unit) + 110 * unit - state.x),
-  floorY - (PLINTH + 8 + LETTER_TALL / 2) * unit,
-];
+// The laptop with its hinge at `hinge` (x, y) and its lid `lid` of the way
+// open: the deck's faces and the lid's, the way the screen faces, the
+// screen's corners as seen from behind him (top left, top right, bottom
+// right, bottom left), and the keys.
+function lapModel([hx, hy], lid) {
+  const a = LAP3.open * lid * RAD;
+  const up = [-Math.cos(a), Math.sin(a), 0]; // up the lid from the hinge
+  const facing = [-Math.sin(a), -Math.cos(a), 0];
+  const on = (along, z) => [hx + up[0] * along + facing[0] * 0.1, hy + up[1] * along + facing[1] * 0.1, z];
+  const edge = LAP3.half - LAP3.bezel;
+  const keys = [];
+  for (let row = 0; row < 5; row += 1) {
+    const x = hx - 4 - row * 3.2;
+    for (let z = 6 - LAP3.half; z < LAP3.half - 7; z += 3.6) keys.push([[x, hy + 0.1, z], [x, hy + 0.1, z + 2.4]]);
+  }
+  const pad = [-7, 7].flatMap((z) => [[hx - 31, hy + 0.1, z], [hx - 22, hy + 0.1, z]]);
+  keys.push([pad[0], pad[1], pad[3], pad[2], pad[0]]);
+  return {
+    deck: box(hx - LAP3.deep, hx, hy - LAP3.thick, hy, -LAP3.half, LAP3.half),
+    lid: block([hx, hy, -LAP3.half], times(up, LAP3.lid), [0, 0, 2 * LAP3.half], times(facing, -LAP3.lidThick)),
+    facing,
+    screen: [on(LAP3.lid - LAP3.bezel, -edge), on(LAP3.lid - LAP3.bezel, edge), on(LAP3.chin, edge), on(LAP3.chin, -edge)],
+    keys,
+  };
+}
+
+// The bag where he set it down behind him, and its flap.
+const LAP_BAG = box(BAG.rest - 70 - 24, BAG.rest - 70 + 24, 0, BAG.tall, -9, 9);
+const LAP_FLAP = [-9.1, 9.1].map((z) => [[BAG.rest - 94, BAG.tall, z], [BAG.rest - 94, 12, z], [BAG.rest - 46, 12, z], [BAG.rest - 46, BAG.tall, z]]);
+
+// The camera once round: the screen filling much of the view, low and left
+// of middle so his head and shoulders sit above it and to its right; on a
+// phone, across the view.
+function lapShot(screen, pivot) {
+  const probe = orbitCamera({ yaw: LAP_YAW, pitch: LAP_PITCH, invDistance: 1 / LAP_DISTANCE, scale: 1, x: 0, y: 0, pivot });
+  const pts = screen.map((p) => probe.project(p));
+  const minX = Math.min(...pts.map((q) => q.x));
+  const maxX = Math.max(...pts.map((q) => q.x));
+  const minY = Math.min(...pts.map((q) => q.y));
+  const maxY = Math.max(...pts.map((q) => q.y));
+  const narrow = narrowScreen.matches;
+  const room = sceneHeight - navHeight;
+  const scale = Math.min(
+    ((narrow ? 1 : 0.48) * sceneWidth) / (maxX - minX),
+    ((narrow ? 0.52 : 0.6) * room) / (maxY - minY),
+  );
+  const middleX = sceneWidth * (narrow ? 0.47 : 0.36);
+  const middleY = navHeight + room * (narrow ? 0.46 : 0.64);
+  return {
+    scale,
+    x: middleX - (scale * (minX + maxX)) / 2,
+    y: middleY - (scale * (minY + maxY)) / 2,
+  };
+}
+
+// Draws him at his laptop from behind, the camera `u` of the way round, his
+// pose `p` and his hip over the floor at `hipX` on screen; only while the
+// opening has him at the laptop, and the camera is off the side.
+function drawLapCam(u, unit, hipX, rise, p) {
+  const computer = intro.active && intro.here?.computer;
+  const show = u > 0 && computer?.at === 'lap';
+  lapCam.toggleAttribute('hidden', !show);
+  lapFigureSvg.toggleAttribute('hidden', !show);
+  if (!show) {
+    if (!lapScreen.hidden) lapScreen.hidden = true;
+    lapView.head = null;
+    swapLapDrawing(1);
+    return;
+  }
+  figure.style.visibility = 'hidden';
+  const e = smoother(u);
+  // Just off the side, the laptop and bag as the side view draws them give
+  // way to these, which are modelled.
+  const modelled = ease(clamp(e / 0.2, 0, 1));
+  swapLapDrawing(modelled);
+
+  // The laptop where the side view has it on his lap, the keys lifted as
+  // they look there; and the middle of its screen, fully open and still,
+  // which the camera swings about.
+  const { lap } = computer;
+  const top = 242 - lap.y - p.bob + LAP3.lift;
+  const hingeX = onLaptop(lap, LID.hinge[0], 0)[0] - 70;
+  if (!lapView.pivot) lapView.pivot = mean(lapModel([hingeX, top], 1).screen);
+  const pivot = lapView.pivot;
+  const model = lapModel([hingeX, top - computer.bump], computer.lid);
+  if (!lapView.shot) lapView.shot = lapShot(lapModel([hingeX, top], 1).screen, pivot);
+  const shot = lapView.shot;
+
+  const flat = { x: hipX + pivot[0] * unit, y: floorY + 1 + rise - pivot[1] * unit };
+  const camera = orbitCamera({
+    yaw: LAP_YAW * e,
+    pitch: LAP_PITCH * e,
+    invDistance: e / LAP_DISTANCE,
+    scale: unit * (shot.scale / unit) ** e,
+    x: mix(flat.x, shot.x, e),
+    y: mix(flat.y, shot.y, e),
+    pivot,
+  });
+  lapLayer.style.setProperty('--zoom', (1 + 0.5 * e).toFixed(3));
+
+  const faces = (list) => list.filter((face) => camera.sees(face.normal, face.pts[0]))
+    .map((face) => `${polyline(camera, face.pts)}Z`).join('');
+  const inner = camera.sees(model.facing, model.screen[0]);
+  lapParts.shadow.setAttribute('d', outline(camera, ring([10, 0.2, 0], [0, 1, 0], 44, 24)));
+  lapParts.shadow.style.opacity = (0.05 * e).toFixed(3);
+  lapParts.lid.setAttribute('d', faces(model.lid));
+  lapParts.glass.setAttribute('d', inner ? `${polyline(camera, model.screen)}Z` : '');
+  lapParts.deck.setAttribute('d', faces(model.deck));
+  lapParts.keys.setAttribute('d', camera.sees([0, 1, 0], model.keys[0][0]) ? segments(camera, model.keys) : '');
+  lapParts.bag.setAttribute('d', faces(LAP_BAG));
+  lapParts.flap.setAttribute('d', segments(camera, LAP_FLAP.filter((line) => camera.sees([0, 0, Math.sign(line[0][2])], line[0]))));
+
+  // The screen, sized once to about the size it is drawn at once the camera
+  // is round, so its type is drawn near its own size, then mapped onto the
+  // lid's corners wherever the camera is.
+  const light = screenLight(computer.lid);
+  const lit = light > 0 && inner;
+  if (lapScreen.hidden === lit) lapScreen.hidden = !lit;
+  if (lit) {
+    if (!lapView.size) {
+      const final = orbitCamera({
+        yaw: LAP_YAW, pitch: LAP_PITCH, invDistance: 1 / LAP_DISTANCE, scale: shot.scale, x: shot.x, y: shot.y, pivot,
+      });
+      const [a, b, c, d] = lapModel([hingeX, top], 1).screen.map((q) => final.project(q));
+      const w = Math.round((Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - d.x, c.y - d.y)) / 2);
+      const h = Math.round((Math.hypot(d.x - a.x, d.y - a.y) + Math.hypot(c.x - b.x, c.y - b.y)) / 2);
+      lapView.size = [w, h];
+      lapScreen.style.width = `${w}px`;
+      lapScreen.style.height = `${h}px`;
+      lapScreen.style.setProperty('--u', `${clamp(h / 18, 7, 22).toFixed(2)}px`); // room for the fix's seven lines
+      lapScreen.classList.toggle('is-small', w < 520);
+    }
+    const [w, h] = lapView.size;
+    const [p0, p1, p2, p3] = model.screen.map((q) => camera.project(q));
+    lapScreen.style.transform = quadMatrix(w, h, p0, p1, p2, p3);
+    lapScreen.style.opacity = (light * modelled).toFixed(3);
+  }
+
+  // Him. As the camera comes round his hands come side by side onto the
+  // keys, where the side view has one ahead of the other, with his elbows
+  // out to the sides; what they do there, typing or reaching for Enter, is
+  // what they do in the side view.
+  const joints = figureJoints(p, 0, 0);
+  const toward = (a, b) => add(a, times(sub(b, a), e));
+  const lean = (q) => [q[0], q[1], q[2] + LAP_LEAN * e * (q[1] - joints.hip[1])];
+  for (const name of ['neck', 'head']) joints[name] = lean(joints[name]);
+  joints.shoulders = joints.shoulders.map(lean);
+  for (const arm of [joints.nearArm, joints.farArm]) {
+    arm[0] = lean(arm[0]);
+    arm[1] = lean(arm[1]);
+  }
+  computer.keys.forEach((key, i) => { // his far hand's key, then his near hand's
+    const side = i ? 1 : -1;
+    const arm = joints[i ? 'nearArm' : 'farArm'];
+    const to = [hingeX - LAP_KEYS.back, top - computer.bump + 1.5, side * LAP_KEYS.z];
+    const [elbow, hand] = armTo(arm[0], add(arm[2], sub(to, [key[0] - 70, 242 - key[1] - p.bob, side * SHOULDER_Z])), [-0.5, -1, 0.35 * side]);
+    arm[1] = toward(arm[1], elbow);
+    arm[2] = toward(arm[2], hand);
+  });
+  drawFigure(camera, joints, e, lapRig);
+  const head = camera.project(joints.head);
+  lapView.head = { x: head.x, y: head.y, r: 23 * head.s, k: ease(clamp(u / 0.5, 0, 1)) };
+}
+
+// Shows the laptop and bag he has in the side view, which are drawn, while
+// he is hidden, and the modelled ones over them, `k` of the way from the one
+// to the other.
+let lapSwap = 1;
+function swapLapDrawing(k) {
+  if (k === lapSwap) return;
+  lapSwap = k;
+  const drawn = k < 1 ? 'visible' : '';
+  for (const el of [laptop, bag]) {
+    if (el.style.visibility !== drawn) el.style.visibility = drawn;
+    el.style.opacity = k > 0 && k < 1 ? (1 - k).toFixed(3) : '';
+  }
+  lapLayer.style.opacity = k < 1 ? k.toFixed(3) : '';
+}
+
+// An arm from `shoulder` reaching for `target`, bent out towards `pole`, in
+// 3D and measured as figureJoints measures his arm: its elbow, and its hand,
+// short of the target if that is out of reach.
+function armTo(shoulder, target, pole) {
+  const span = sub(target, shoulder);
+  const length = Math.hypot(...span) || 1;
+  const axis = times(span, 1 / length);
+  const d = clamp(length, 9, 67.5);
+  const along = (38 * 38 - 30 * 30 + d * d) / (2 * d);
+  const bend = normalise(sub(pole, times(axis, dot(pole, axis))));
+  const elbow = add(shoulder, add(times(axis, along), times(bend, Math.sqrt(Math.max(0, 38 * 38 - along * along)))));
+  return [elbow, add(shoulder, times(axis, d))];
+}
+
+// With the camera off the side, the bubble follows his head round, kept on
+// screen and under the navbar.
+function placeLapSpeech(unit) {
+  const head = lapView.head;
+  if (!head || !introSpeech || introSpeech.hidden) return;
+  const half = introSpeech.offsetWidth / 2;
+  const tail = 0.17 * half; // as frame() places it: the tail a little right of the middle
+  const left = parseFloat(introSpeech.style.left) || sceneWidth / 2;
+  const x = mix(left, head.x - tail, head.k);
+  introSpeech.style.left = `${clamp(x, half + 8, sceneWidth - half - 8).toFixed(1)}px`;
+  const side = floorY - UNITS_TALL * unit - 18; // where the bubble's foot is, side on
+  const foot = clamp(mix(side, head.y - head.r - 12, head.k), navHeight + introSpeech.offsetHeight + 8, sceneHeight - 8);
+  introSpeech.style.bottom = `${(sceneHeight - foot).toFixed(1)}px`;
+}
 
 function fixN(unit) {
   if (intro.fixAt !== null || STATUE.n.classList.contains('is-fixed')) return;
@@ -5856,9 +6535,9 @@ function fixN(unit) {
 function finishIntro(completed) {
   if (!intro.active) return;
   intro.active = false;
+  introSkip.hidden = true;
   intro.here = null;
   placeLaptop(null);
-  showEditor(false);
   settleTools();
   const unit = parseFloat(getComputedStyle(figure).height) / UNITS_TALL;
   if (!completed) {
@@ -5886,6 +6565,16 @@ function skipIntro() {
   finishIntro(false);
   if (speechUp()) hushSpeech();
 }
+
+// The Skip intro button, there for the whole opening: it cuts the opening
+// short and sends him on to About Me, as the end of the opening does.
+const introSkip = document.querySelector('.intro-skip');
+introSkip.hidden = !intro.active;
+introSkip.addEventListener('click', () => {
+  skipIntro();
+  intro.leave = true;
+  buttons[0]?.focus({ preventScroll: true });
+});
 
 // Sets him off from the start once the opening is done, his last word
 // staying a moment as he goes. It runs at the top of a frame, before that
@@ -5925,7 +6614,7 @@ if (reducedMotion.matches || returning) {
 
 // He starts beside the N, facing it.
 {
-  const unit = parseFloat(getComputedStyle(figure).height) / UNITS_TALL;
+  const unit = figureUnit;
   state.x = state.target = nameStart(unit) - 230 * unit; // clear of the fallen N
 }
 
@@ -5936,7 +6625,7 @@ function frame(now) {
   updateInkCursor(dt);
   drawIntroSpeech(now);
 
-  const unit = parseFloat(getComputedStyle(figure).height) / UNITS_TALL;
+  const unit = figureUnit;
   const bodyHeight = unit * UNITS_TALL;
   const walkPx = (GAITS.walk.travel / WALK_CYCLE) * unit;
   const runPx = (GAITS.run.travel / RUN_CYCLE) * unit;
@@ -5982,7 +6671,8 @@ function frame(now) {
   // straightens up before he turns and walks away.
   const leavingBench = (state.inspect > 0 || state.projectView > 0 || state.benchAside > 0) &&
     state.destinationId !== projectScene;
-  const leavingExperience = state.jump !== null || (courseEngaged && (!TOWER_MODE || state.destinationId !== experienceScene)); // he lands before he sets off
+  const leavingExperience = state.jump !== null || (courseEngaged && (!TOWER_MODE || state.destinationId !== experienceScene)) || // he lands before he sets off
+    chalkLeaving(); // or, at the chalkboard, the camera comes back to the world first
   const leavingTerminal = (state.typeIn > 0 || state.termView > 0) && state.destinationId !== skillsScene;
   if (leavingBench || leavingExperience || leavingTerminal) wanted = 0;
 
@@ -6080,6 +6770,11 @@ function frame(now) {
     }
   }
 
+  // Leaving a stop runs its steps in turn (the camera back, then him up),
+  // unless the visitor walks him off: then they go all at once, and
+  // LEAVE_HURRY times as fast, so he sets off almost as soon as asked.
+  const hurry = state.destinationId === 'roam' ? LEAVE_HURRY : 1;
+
   const settled =
     state.wantSeat && away <= ARRIVED && state.speed === 0 &&
     state.turning === 0 && state.facing === FIRE_SIDE;
@@ -6088,9 +6783,9 @@ function frame(now) {
     state.compose = settled ? 1 : 0;
   } else {
     const framing = settled && state.seat > 0.85;
-    state.compose = clamp(state.compose + (framing ? dt : -1.25 * dt) / COMPOSE_TIME, 0, 1);
-    const seated = settled || state.compose > 0.35; // stay down while the camera pulls back
-    state.seat = clamp(state.seat + (seated ? dt : -dt) / SIT_TIME, 0, 1);
+    state.compose = clamp(state.compose + (framing ? dt : -1.25 * dt * hurry) / COMPOSE_TIME, 0, 1);
+    const seated = settled || (state.compose > 0.35 && hurry === 1); // stay down while the camera pulls back
+    state.seat = clamp(state.seat + (seated ? dt : -dt * hurry) / SIT_TIME, 0, 1);
   }
   if (settled && state.compose >= 0.4 && openPanelId !== campScene) openPanel(campScene);
 
@@ -6105,8 +6800,8 @@ function frame(now) {
     state.inspect = inspecting ? 1 : 0;
   } else if (inspecting) {
     state.inspect = Math.min(1, state.inspect + dt / BEND_TIME);
-  } else if (state.projectView === 0) {
-    state.inspect = Math.max(0, state.inspect - dt / UNBEND_TIME);
+  } else if (state.projectView === 0 || hurry > 1) {
+    state.inspect = Math.max(0, state.inspect - (dt * hurry) / UNBEND_TIME);
   }
 
   if (inspecting && state.inspect === 1) state.inspectHold += dt;
@@ -6118,8 +6813,8 @@ function frame(now) {
     state.benchAside = inspecting ? 1 : 0;
   } else {
     if (wantsProjectView) state.projectView = Math.min(1, state.projectView + dt / CAMERA_IN);
-    else if (state.benchAside === 0) state.projectView = Math.max(0, state.projectView - dt / CAMERA_OUT);
-    const slide = wantsProjectView && state.projectView === 1 ? dt : -1.25 * dt;
+    else if (state.benchAside === 0 || hurry > 1) state.projectView = Math.max(0, state.projectView - (dt * hurry) / CAMERA_OUT);
+    const slide = wantsProjectView && state.projectView === 1 ? dt : -1.25 * dt * hurry;
     state.benchAside = clamp(state.benchAside + slide / COMPOSE_TIME, 0, 1);
   }
   if (wantsProjectView && state.benchAside >= 0.65 && openPanelId !== projectScene) openPanel(projectScene);
@@ -6135,10 +6830,10 @@ function frame(now) {
     state.termView = typing ? 1 : 0;
   } else {
     if (typing) state.typeIn = Math.min(1, state.typeIn + dt / TYPE_TIME);
-    else if (state.termView === 0) state.typeIn = Math.max(0, state.typeIn - dt / UNTYPE_TIME);
+    else if (state.termView === 0 || hurry > 1) state.typeIn = Math.max(0, state.typeIn - (dt * hurry) / UNTYPE_TIME);
     state.typeHold = typing && state.typeIn === 1 ? state.typeHold + dt : 0;
     if (typing && state.typeHold >= TERM_HOLD) state.termView = Math.min(1, state.termView + dt / CAMERA_IN);
-    else if (!typing) state.termView = Math.max(0, state.termView - dt / CAMERA_OUT);
+    else if (!typing) state.termView = Math.max(0, state.termView - (dt * hurry) / CAMERA_OUT);
   }
   if (typing && state.termView >= 0.94 && openPanelId !== skillsScene) openPanel(skillsScene);
 
@@ -6308,14 +7003,13 @@ function frame(now) {
   frameShift += lineFraming(dt);
   if (introSpeech && !introSpeech.hidden) {
     // Over his head, but kept on screen when the opening frames him near an
-    // edge. The numbers mirror .intro-speech's width and tail offset. With
-    // the editor up it sits above that, until the editor has gone.
+    // edge. The numbers mirror .intro-speech's width and tail offset. From
+    // behind him in the opening, placeLapSpeech moves it on from here.
     const half = introSpeech.offsetWidth / 2;
     const tail = 0.17 * half; // the tail sits a little right of the middle
     const middle = clamp(sceneWidth / 2 + frameShift + walkingOn - tail, half + 8, sceneWidth - half - 8);
     introSpeech.style.left = `${middle.toFixed(1)}px`;
-    const overEditor = editor && !editor.hidden;
-    introSpeech.style.bottom = overEditor ? `${(sceneHeight - editor.offsetTop + 12).toFixed(1)}px` : '';
+    introSpeech.style.bottom = '';
   }
   const hipShift = -(SEAT_BACK * seatE + bend.back) * unit * state.facing;
   // Up the tower the camera rises with him, keeping his feet a little below
@@ -6343,7 +7037,20 @@ function frame(now) {
     (state.x - benchX) / unit - bend.back, bend.arms, now, dt);
   const termMarkX = sceneWidth / 2 + frameShift + (skillsX - renderX);
   drawTerminal(state.termView, unit, termMarkX, sceneRise, final, (state.x - skillsX) / unit);
-  const worldFade = 1 - ease(clamp(Math.max(state.projectView, state.termView) / 0.45, 0, 1));
+  // The Experience chalkboard, and him at it once its camera moves (chalkboard.js).
+  const boardView = drawChalkboard(dt, unit, sceneWidth / 2 + frameShift + (experienceX - renderX), sceneRise, final);
+  // And in the opening, him at his laptop from behind.
+  const lapU = intro.active ? lapRound(intro.t) : 0;
+  drawLapCam(lapU, unit, sceneWidth / 2 + frameShift + hipShift + walkingOn + entranceShift,
+    sceneRise - liftPx - dropping - hopPx - entranceLift, final);
+  placeLapSpeech(unit);
+  updateFigurePointerBox(
+    frameShift + hipShift + walkingOn + entranceShift,
+    sceneRise - liftPx - dropping - hopPx - entranceLift,
+    displayFlip,
+    unit,
+  );
+  const worldFade = 1 - ease(clamp(Math.max(state.projectView, state.termView, boardView, lapU) / 0.45, 0, 1));
   scene.style.setProperty('--project-world-opacity', worldFade.toFixed(4));
   scene.style.setProperty('--project-ground-opacity', (0.22 * worldFade).toFixed(4));
 
@@ -6378,8 +7085,10 @@ function frame(now) {
       showForgeProps();
     }
     else if (state.destinationId === 'incident') livingArrived(); // living: at something broken, to fix it
+    else if (state.destinationId === 'clickable') clickArrived(); // living: at something the visitor clicked (clickables.js)
     else openPanel(state.destinationId);
   }
+  updateStops(unit); // near a stop, its prompt up
   scene.dataset.gait =
     entrancePreview?.gait || (intro.active && intro.here?.hands ? 'coding'
       : ambient.act?.hands ? 'coding' // living: hands shown for what he does by himself
@@ -6415,7 +7124,7 @@ function goTo(button, { keepSpeech = false } = {}) {
   if (id !== experienceScene) state.experienceActive = false;
 
   state.target = Number(button.dataset.position);
-  if (id === experienceScene && !TOWER_MODE) {
+  if (id === experienceScene && LINE_MODE) {
     state.target = lineBoarding(parseFloat(getComputedStyle(figure).height) / UNITS_TALL);
   }
   state.label = button.textContent.trim();
@@ -6483,6 +7192,9 @@ buttons.forEach((button) => {
 
 nav.addEventListener('keydown', (event) => {
   if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+  // Only along a route reached with the keyboard; clicked, the arrows walk
+  // him instead (keyFocus, by the keys below).
+  if (event.target !== keyFocus) return;
   event.preventDefault();
   const current = buttons.indexOf(document.activeElement);
   const step = event.key === 'ArrowRight' ? 1 : -1;
@@ -6491,32 +7203,165 @@ nav.addEventListener('keydown', (event) => {
   goTo(buttons[next]);
 });
 
+/* ----------------------------------------------------------- using a stop
+   Walked up to a stop by himself, he can be asked to use it: its mark on
+   the floor lights up into a prompt, and E, a click on that or a click on
+   the scenery there sends him the last few steps and into it, as its
+   button in the navbar does. */
+
+// The scenery at each stop that takes a click, as [left, right, height] in
+// units from the stop's mark, where buildCamp and the others draw it. He
+// can use a stop from STOP_REACH either side of its scenery.
+const STOP_SCENERY = {
+  about: [[-90, 255, 190]], // the log, the book stand and the fire
+  projects: [[-190, 440, 300]], // the workshop
+  experience: BOARD_MODE ? chalkScenery() : [[-390, -55, 470], [10, 280, 190]], // the chalkboard, or the line's departures board and handcar
+  skills: [[-140, 210, 320]], // the robot, the desk and the terminal
+};
+const STOP_REACH = 160; // units
+
+const stopAreas = Object.entries(STOP_SCENERY).map(([id, spans]) => {
+  const button = buttons.find((item) => item.dataset.poi === id);
+  const x = Number(button.dataset.position);
+  // Its click areas, laid in the world by the scenery and sized by his
+  // height as it is, so they keep up with resizes.
+  const hits = spans.map(([left, right, height]) => {
+    const hit = document.createElement('span');
+    hit.className = 'stop-hit';
+    hit.dataset.stop = id;
+    hit.style.left = `calc(${x}px + var(--fig-h) * ${(left / UNITS_TALL).toFixed(4)})`;
+    hit.style.width = `calc(var(--fig-h) * ${((right - left) / UNITS_TALL).toFixed(4)})`;
+    hit.style.top = `calc(var(--fig-h) * ${(-height / UNITS_TALL).toFixed(4)})`;
+    hit.style.height = `calc(var(--fig-h) * ${(height / UNITS_TALL).toFixed(4)})`;
+    world.append(hit);
+    return hit;
+  });
+  const marker = markers.find((item) => item.dataset.marker === id);
+  return {
+    id, button, x, hits, marker,
+    from: Math.min(...spans.map((span) => span[0])) - STOP_REACH,
+    to: Math.max(...spans.map((span) => span[1])) + STOP_REACH,
+  };
+});
+let nearStop = null; // the stop he could be sent into now, if any
+
+// Movement keys down now, and those held through E, whose repeats are
+// ignored until they come up so they don't walk him off again.
+const MOVE_KEYS = ['KeyA', 'ArrowLeft', 'KeyD', 'ArrowRight', 'Space'];
+const heldKeys = new Set();
+const letGoKeys = new Set();
+
+// Each frame: the stop he is near, if he is free to be sent into it (the
+// opening over, nothing open, not at one, and walked by the visitor or
+// standing about rather than on his way somewhere), with its prompt up and
+// its scenery taking clicks.
+function updateStops(unit) {
+  let near = null;
+  if (!intro.active && !intro.release && !openPanelId && !state.wantSeat && !state.wantBench && !state.wantForge &&
+      !state.experienceActive && handcar.stage === 'off' && state.courseTime === 0 && !chalkBusy() &&
+      (state.announced || state.destinationId === 'roam')) {
+    near = stopAreas.find((item) => state.x >= item.x + item.from * unit && state.x <= item.x + item.to * unit)?.id ?? null;
+  }
+  if (near === nearStop) return;
+  nearStop = near;
+  stopAreas.forEach((area) => {
+    area.marker.classList.toggle('is-near', area.id === near);
+    area.marker.classList.remove('is-hot');
+    area.hits.forEach((hit) => hit.classList.toggle('is-near', area.id === near));
+  });
+}
+
+// Sends him into the stop he is near: the rest of the way there and into
+// it, as its button in the navbar would. Keys still held from walking up
+// are let go first. Whether he was near one.
+function useStop(id = nearStop) {
+  if (!id || id !== nearStop) return false;
+  sfx.ensureReady();
+  sfx.tick();
+  heldKeys.forEach((code) => letGoKeys.add(code));
+  inputKeys.left = false;
+  inputKeys.right = false;
+  if (inputKeys.sprint) setTurboState(false);
+  updateHintKeys();
+  goTo(stopAreas.find((area) => area.id === id).button);
+  return true;
+}
+
+stopAreas.forEach((area) => {
+  area.marker.querySelector('.poi__label').addEventListener('click', () => useStop(area.id));
+  area.hits.forEach((hit) => {
+    hit.addEventListener('click', (event) => {
+      if (!figurePointerHit(event.clientX, event.clientY)) useStop(area.id); // a click on him is a shove
+    });
+    // Over the scenery, its prompt lights up as if pointed at.
+    hit.addEventListener('pointerenter', () => area.marker.classList.add('is-hot'));
+    hit.addEventListener('pointerleave', () => area.marker.classList.remove('is-hot'));
+  });
+});
+
 requestAnimationFrame(frame);
 
 /* -------------------------------------------------------- projects sheet */
 
 // The projects listed on the sheet. Their names fill the list, so this is
-// the one place to change them.
+// the one place to change them; each needs a tab in index.html too, and the
+// model he builds for it is the one at the same place in MODELS. `frontEnd`
+// is shown on the sheet; `slug` names its case study in case.js (CASES)
+// and its screens in cases/.
 const projectData = [
   {
-    title: 'Project 01',
-    description: 'A focused case study can live here: the problem, the approach, and what the finished work achieved.',
+    slug: 'casemap',
+    title: 'CaseMap Next Gen',
+    description: 'Built for LexisNexis: the next generation of CaseMap, their legal case analysis tool, as a case dashboard you arrange yourself. Drag any panel and resize it from its edges or corners, swap bars for donuts, dock the tiles and navigation to any side, and save the layout as a template for new cases. Every move works from the keyboard too. The demo runs on mock data.',
+    role: 'Design & development',
+    tools: 'Angular, TypeScript, Vercel',
+    frontEnd: ['Angular 22', 'TypeScript', 'Standalone components', 'Signals', 'Zoneless Angular', 'Tailwind CSS', 'RxJS patterns', 'Electron desktop shell'],
+    url: 'https://casemap-next-gen.vercel.app',
   },
   {
-    title: 'Project 02',
-    description: 'Use this space for a second build, including the decisions, iterations, and result worth highlighting.',
+    slug: 'chiisai',
+    title: 'Chiisai Games',
+    description: 'Free party games to play in the browser with friends: six of them, from live chess in the fog of war to a drawing game of deduction. No downloads, and every room stays in sync as you play.',
+    role: 'Design & development',
+    tools: 'Nuxt, Vue, Colyseus (WebSockets), Cloudflare',
+    frontEnd: ['Nuxt 4', 'Vue 3', 'TypeScript', 'Tailwind CSS', 'Three.js / WebGL', 'Vite', 'Colyseus client (WebSockets)', 'Live game UI', '3D scene composition', 'CRT desktop shell'],
+    url: 'https://chiisaigames.pixelatedindustries.com',
   },
   {
-    title: 'Project 03',
-    description: 'A third project can show range, experimentation, and another side of how you solve problems.',
+    slug: 'forge',
+    title: 'TheWebsiteForge',
+    description: 'A web studio that designs, builds, hosts and looks after sites under one roof, from product pages to shops, with finished builds to buy off the shelf.',
+    role: 'Design & development',
+    tools: 'Nuxt, Vue, Tailwind CSS, Firebase, Cloudflare',
+    frontEnd: ['Nuxt 4', 'Vue 3', 'TypeScript', 'Tailwind CSS 4', 'Pinia', 'Valibot', 'UI builder driven by schemas', 'Builder by sections', 'Component registry', 'Preview and export'],
+    url: 'https://websiteforge.pixelatedindustries.com',
   },
   {
-    title: 'Project 04',
-    description: 'A fourth project could be something smaller or stranger: a tool, an experiment, a side project.',
+    slug: 'workforce',
+    title: 'PetPlus Workforce',
+    description: 'The staff app for the Pet Plus vet shops: each store’s shift roster, clocking in and daily routine in one place, installable on a phone and signed into with a Google account.',
+    role: 'Design & development',
+    tools: 'React, Supabase, Google sign in (OAuth 2.0), PWA, Vercel',
+    frontEnd: ['React', 'Vite', 'PWA (installable)', 'Google Identity Services', 'Supabase client'],
+    url: 'https://petplus-workforce-pwa.vercel.app',
   },
   {
-    title: 'Project 05',
-    description: 'The fifth can be the most recent work, or the one that best shows where you are heading next.',
+    slug: 'steady',
+    title: 'Steady',
+    description: 'A calendar that brings every calendar into one view, flags the clashes and shows where the hours go, in ten colour themes.',
+    role: 'Design & development',
+    tools: 'React, Firebase (Auth, Firestore), Vercel',
+    frontEnd: ['React', 'Vite', 'Recharts', 'Lucide icons', 'Firebase client (Auth, Firestore)'],
+    url: 'https://steady-calendar.vercel.app',
+  },
+  {
+    slug: 'sin',
+    title: 'SIN Esports',
+    description: 'The home of SIN Esports, a South African esports organisation: its Valorant, Rocket League and Apex divisions, limited clothing drops, match nights, and a wall of its creators’ Twitch channels to flip through live, all in WebGL, with motion that follows your scroll.',
+    role: 'Design & development',
+    tools: 'Nuxt, Vue, Three.js (WebGL), GSAP, Twitch embeds, Cloudflare',
+    frontEnd: ['Nuxt', 'Vue', 'TypeScript', 'Three.js / WebGL', 'GSAP ScrollTrigger', 'Lenis smooth scroll', 'Twitch embeds'],
+    url: 'https://sin-esports.com',
   },
 ];
 const projectTabs = [...document.querySelectorAll('[data-project-tab]')];
@@ -6540,7 +7385,17 @@ function selectProject(index, focus = false) {
     `${twoDigits(index + 1)} of ${twoDigits(projectData.length)}`;
   projectDetail.querySelector('h2').textContent = item.title;
   projectDetail.querySelector('.project-description').textContent = item.description;
-  projectDetail.querySelector('a').setAttribute('aria-label', `View ${item.title}`);
+  projectDetail.querySelector('.project-role').textContent = item.role;
+  // The front end, a chip for each.
+  projectDetail.querySelector('.project-chips').replaceChildren(...item.frontEnd.map((name) => {
+    const chip = document.createElement('li');
+    chip.textContent = name;
+    return chip;
+  }));
+  const link = projectDetail.querySelector('.project-link');
+  link.href = item.url;
+  link.setAttribute('aria-label', `View ${item.title} (opens in a new tab)`);
+  projectDetail.querySelector('.project-case').setAttribute('aria-label', `Detailed view of ${item.title}`);
   if (focus) projectTabs[index].focus();
   build.wanted = index; // he builds it on the bench while the sheet is open
 }
@@ -6623,34 +7478,34 @@ chapterButtons.forEach((button, index) => {
    world is seen from. */
 const skillData = [
   {
-    slug: 'os-security',
-    title: 'Operating Systems & Security',
-    description: 'Running and hardening Windows Server estates, and guarding the edge with web application firewalls, certificates, firewalls, VPNs and intrusion detection.',
-    tags: ['Windows Server', 'Windows', 'WAF', 'SSL / PKI', 'Gate firewalls', 'VPNs', 'IDS / IPS', 'Load balancing'],
+    slug: 'design',
+    title: 'UI/UX Design',
+    description: 'Interfaces people can shape to suit themselves: layouts they arrange, themes they pick, and every control in reach of the keyboard, on any size of screen.',
+    tags: ['UI/UX design', 'Customizable interfaces', 'Responsive layouts', 'Keyboard access', 'Theming', 'Dashboards', 'Motion & scroll effects', '3D scenes'],
   },
   {
-    slug: 'net-auth',
-    title: 'Networking & Authentication',
-    description: 'Who gets in, and how: single sign-on, directory services and network authentication, down to the packets, with APIs tested for holes before anyone else finds them.',
-    tags: ['SAML', 'OAuth', 'LDAP', 'RADIUS', 'TCP/IP', 'API security testing'],
+    slug: 'frontend',
+    title: 'Front End',
+    description: 'Polished, fast front ends in whichever framework the job calls for, from a live party game in Vue to a legal case dashboard in Angular.',
+    tags: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'Vue / Nuxt', 'React', 'Angular', 'Tailwind CSS', 'Three.js / WebGL'],
   },
   {
-    slug: 'cloud-monitoring',
-    title: 'Cloud & Monitoring',
-    description: 'Infrastructure as code on Azure, containers, pipelines with security built in, recovery plans that work, and the dashboards that show what is healthy.',
-    tags: ['Azure', 'Kubernetes / Docker', 'CI/CD (security-integrated)', 'Terraform', 'Disaster recovery', 'ELK', 'SQL'],
+    slug: 'backend',
+    title: 'Back End & APIs',
+    description: 'What sits behind the screen: sign in, live data, game rooms that stay in sync, and the APIs that tie a shop’s tills to its web store.',
+    tags: ['Supabase', 'Firebase', 'Colyseus (WebSockets)', 'REST APIs', 'Lightspeed POS', 'Shopify', 'SQL'],
   },
   {
-    slug: 'collab-tools',
-    title: 'Collaboration & Tools',
-    description: 'Keeping the work visible and the team moving: version control, tickets and docs, and running Microsoft 365 for the whole company.',
-    tags: ['Git / GitHub', 'Jira', 'Confluence', 'Microsoft 365 admin', 'Asana', 'MS Project'],
+    slug: 'cloud',
+    title: 'Cloud & DevOps',
+    description: 'Getting it live and keeping it quick: sites deployed on every push, DNS and caching tuned at the edge, and containers when a project needs them.',
+    tags: ['Cloudflare', 'Vercel', 'Netlify', 'Azure', 'Docker', 'Git / GitHub'],
   },
   {
-    slug: 'scripting',
-    title: 'Programming & Scripting',
-    description: 'Automating the repetitive and the risky: provisioning, patching and reporting scripts, and the odd tool when nothing off the shelf fits.',
-    tags: ['Python', 'PowerShell', 'Bash', 'C#', 'SQL', 'Java'],
+    slug: 'systems',
+    title: 'Systems & Scripting',
+    description: 'Keeping a company running: its servers, Microsoft 365 and Google Workspace for the whole team, single sign on, and scripts for the dull jobs.',
+    tags: ['Windows Server', 'Microsoft 365 admin', 'Google Workspace admin', 'SSO (SAML, OAuth, LDAP)', 'Python', 'PowerShell', 'Bash', 'C#', 'Java'],
   },
 ];
 
@@ -7140,6 +7995,7 @@ SoundEngine.prototype.key = function key() {
   const now = this.ctx.currentTime;
   if (now - (this.lastKey || 0) < 0.03) return;
   this.lastKey = now;
+  if (this.sample('uiClick', { vol: 0.045, rate: 1.18, vary: 0.08 })) return;
   const length = Math.floor(this.ctx.sampleRate * 0.02);
   const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -7153,7 +8009,7 @@ SoundEngine.prototype.key = function key() {
   gain.gain.setValueAtTime(0.35, now);
   source.connect(filter);
   filter.connect(gain);
-  gain.connect(this.masterGain);
+  gain.connect(this.synthGain);
   source.start(now);
 };
 SoundEngine.prototype.crt = function crt() {
@@ -7167,7 +8023,7 @@ SoundEngine.prototype.crt = function crt() {
   thumpGain.gain.setValueAtTime(0.5, now);
   thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   thump.connect(thumpGain);
-  thumpGain.connect(this.masterGain);
+  thumpGain.connect(this.synthGain);
   thump.start(now);
   thump.stop(now + 0.3);
   const whine = this.ctx.createOscillator();
@@ -7178,7 +8034,7 @@ SoundEngine.prototype.crt = function crt() {
   whineGain.gain.exponentialRampToValueAtTime(0.02, now + 0.2);
   whineGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
   whine.connect(whineGain);
-  whineGain.connect(this.masterGain);
+  whineGain.connect(this.synthGain);
   whine.start(now);
   whine.stop(now + 1.2);
 };
@@ -7279,7 +8135,7 @@ function updateWalkingMovement() {
 
 function triggerJump() {
   const isTowerActive = TOWER_MODE && (state.experienceActive || state.courseTime > 0 || state.jump !== null);
-  if (state.hop || state.jump || state.seat > 0 || state.inspect > 0 || state.typeIn > 0 || isTowerActive || handcar.stage !== 'off' || openPanelId !== null) return;
+  if (state.hop || state.jump || state.seat > 0 || state.inspect > 0 || state.typeIn > 0 || isTowerActive || handcar.stage !== 'off' || chalkBusy() || openPanelId !== null) return;
   sfx.ensureReady();
   skipIntro();
   if (state.wantForge) {
@@ -7316,14 +8172,39 @@ function setTurboState(active) {
   }
 }
 
+// Whether the visitor last got about by pointer or by Tab, and so the
+// control the keyboard focused, if the focus is on one it did. Focus put
+// somewhere by a click (or by script straight after one, as the X on a
+// paper puts it on the navbar) leaves his keys with him.
+let pointerLast = false;
+let keyFocus = null;
+window.addEventListener('pointerdown', () => { pointerLast = true; }, { capture: true, passive: true });
+window.addEventListener('keydown', (event) => { if (event.key === 'Tab') pointerLast = false; }, true);
+document.addEventListener('focusin', (event) => { keyFocus = pointerLast ? null : event.target; });
+
 window.addEventListener('keydown', (event) => {
   // living: with the terminal up, letters type at its prompt rather than
   // walk him off (living.js); the arrow keys still do.
   if (livingTermKey(event)) return;
-  const interactive = event.target.closest?.(
-    'button, a, input, textarea, select, summary, [contenteditable], [role="button"], [role="tab"]',
-  );
-  if (event.defaultPrevented || interactive) return;
+  // Only a box being typed in keeps his keys from him.
+  const typing = event.target.closest?.('input:not([type="range"]), textarea, select, [contenteditable]');
+  // E sends him into the stop he is near, whatever else has focus (the X
+  // on a paper leaves it on the navbar).
+  if (event.code === 'KeyE' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && !typing && useStop()) {
+    event.preventDefault();
+    return;
+  }
+  if (MOVE_KEYS.includes(event.code)) {
+    if (event.repeat && letGoKeys.has(event.code)) return; // held through E
+    letGoKeys.delete(event.code);
+    heldKeys.add(event.code);
+  }
+  // A control reached with the keyboard keeps the keys that work it (Space
+  // presses it, the arrows move along it); one clicked, say the sound
+  // button, leaves them to him. A, D and W are always his.
+  const control = event.target.closest?.('button, a, summary, input, [role="button"], [role="tab"]');
+  const works = ['Space', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.code);
+  if (event.defaultPrevented || typing || (works && control && event.target === keyFocus)) return;
 
   sfx.ensureReady();
 
@@ -7346,6 +8227,8 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
+  heldKeys.delete(event.code);
+  letGoKeys.delete(event.code);
   if (['KeyA', 'ArrowLeft'].includes(event.code)) {
     inputKeys.left = false;
     updateWalkingMovement();
@@ -7361,6 +8244,8 @@ window.addEventListener('keyup', (event) => {
 });
 
 window.addEventListener('blur', () => {
+  heldKeys.clear();
+  letGoKeys.clear();
   inputKeys.left = false;
   inputKeys.right = false;
   setTurboState(false);
@@ -7373,8 +8258,10 @@ let touchDragStartX = null;
 let touchDragActive = false;
 
 window.addEventListener('touchstart', (event) => {
-  // living: nor from the terminal's glass, where a tap is for typing.
-  if (event.touches.length === 1 && !event.target.closest('button, a, nav, article, input, .term-screen')) {
+  // living: nor from the terminal's glass, where a tap is for typing, nor
+  // from a stop's scenery, where a tap uses it, nor from anything else that
+  // answers a tap (clickables.js).
+  if (event.touches.length === 1 && !event.target.closest('button, a, nav, article, input, .term-screen, .stop-hit, .click-hit, .sky-stars.is-wishable i')) {
     touchDragStartX = event.touches[0].clientX;
     touchDragActive = true;
     sfx.ensureReady();
@@ -7422,6 +8309,3 @@ window.addEventListener('touchcancel', endTouchDrag, { passive: true });
 
 // living: the living world starts once everything above is in place.
 startLiving();
-
-
-
