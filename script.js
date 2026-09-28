@@ -521,7 +521,7 @@ class SoundEngine {
   }
 
   set(on) {
-    this.init();
+    if (on) this.init(); // turned off before it ever started, there is nothing to start
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
@@ -544,7 +544,12 @@ class SoundEngine {
     return this.set(!this.enabled);
   }
 
+  // Starts the audio on a gesture, as browsers require. With the sound off
+  // there is nothing to start, and making the AudioContext stalls the page
+  // (for over 150 ms on Windows, a visible jolt on the first key press), so
+  // that waits until the sound is turned on (set).
   ensureReady() {
+    if (!this.enabled) return;
     this.init();
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
@@ -1095,16 +1100,11 @@ const state = {
 };
 
 /* ------------------------------------------------------ cursor interaction
-   A mouse/trackpad gets an arrow drawn in the same ink as the figure. It
-   swings a little on its tip as it moves, and over him it darkens and rings,
-   since he can be poked: entering his silhouette is a poke; pressing on him
-   is a push. The reaction is layered over the pose produced by the main
-   gait solver, so navigation and the rest of the character animation keep
-   their own state. */
+   With a mouse or trackpad he can be poked: entering his silhouette is a
+   poke; pressing on him is a push. The reaction is layered over the pose
+   produced by the main gait solver, so navigation and the rest of the
+   character animation keep their own state. */
 
-const inkCursor = document.querySelector('.ink-cursor');
-const cursorSwing = inkCursor?.querySelector('.ink-cursor__swing');
-const CURSOR_TIP = [5, 4]; // px from the cursor's corner to the tip of the arrow
 const finePointer = window.matchMedia('(pointer: fine)');
 const pointerPlay = {
   x: -100,
@@ -1115,16 +1115,12 @@ const pointerPlay = {
   speed: 0,
   visible: false,
   insideFigure: false,
-  velocityX: 0, // px a second, sideways
-  swing: 0, // degrees the arrow hangs off true on its tip
-  swingShown: '',
   reaction: null,
   cooldownUntil: 0,
 };
 // The main frame already knows exactly where the figure is drawn. Keep that
 // geometry here instead of asking the browser for a fresh layout rectangle on
-// every pointer event (and again every frame). Those synchronous reads made
-// the custom cursor visibly trail on slower machines.
+// every pointer event (and again every frame).
 let pointerFigureBox = null;
 
 const pointerPostures = {
@@ -1203,7 +1199,7 @@ function postured(base, posture) {
 }
 
 function figurePointerHit(x, y) {
-  if (!finePointer.matches || !inkCursor || !pointerFigureBox || figure.style.visibility === 'hidden') return false;
+  if (!finePointer.matches || !pointerFigureBox || figure.style.visibility === 'hidden') return false;
   const dx = (x - pointerFigureBox.centreX) / pointerFigureBox.radiusX;
   const dy = (y - pointerFigureBox.centreY) / pointerFigureBox.radiusY;
   return dx * dx + dy * dy <= 1;
@@ -1234,17 +1230,6 @@ function startPointerReaction(kind, now = performance.now()) {
   };
   pointerPlay.cooldownUntil = now + (kind === 'shove' ? 1280 : 1050);
   scene.dataset.cursorReaction = kind;
-  inkCursor.classList.add('is-poking');
-  window.setTimeout(() => inkCursor.classList.remove('is-poking'), 150);
-}
-
-function knockCursorAway(reaction) {
-  // Play visual impact recoil without displacing physical mouse coordinates
-  inkCursor.classList.remove('is-swatted');
-  void inkCursor.offsetWidth;
-  inkCursor.classList.add('is-swatted');
-  window.setTimeout(() => inkCursor.classList.remove('is-swatted'), 320);
-  scene.dataset.cursorReaction = `${reaction.kind}-impact`;
 }
 
 function pointerReactionPose(base, now) {
@@ -1254,7 +1239,7 @@ function pointerReactionPose(base, now) {
   const progress = clamp((now - reaction.startedAt) / reaction.duration, 0, 1);
   if (!reaction.impacted && progress >= reaction.impactAt) {
     reaction.impacted = true;
-    knockCursorAway(reaction);
+    scene.dataset.cursorReaction = `${reaction.kind}-impact`;
   }
 
   const reacted = postureAt(pointerPostures[reaction.kind], progress, base);
@@ -1272,56 +1257,17 @@ function pointerReactionPose(base, now) {
   return { pose: reacted, flip: reactionFlip };
 }
 
-const placeCursor = (x, y) => {
-  inkCursor.style.transform = `translate3d(${(x - CURSOR_TIP[0]).toFixed(1)}px, ${(y - CURSOR_TIP[1]).toFixed(1)}px, 0)`;
-};
-
-function updateInkCursor(dt) {
-  if (!inkCursor || !finePointer.matches) return;
-  // It swings back off true as it is dragged sideways, like a tag on a
-  // string, and settles once the mouse stops.
-  if (performance.now() - pointerPlay.lastMove > 60) pointerPlay.velocityX = 0;
-  const swingTo = reducedMotion.matches ? 0 : clamp(-pointerPlay.velocityX / 90, -16, 16);
-  pointerPlay.swing += (swingTo - pointerPlay.swing) * Math.min(1, dt * 14);
-  const swing = pointerPlay.swing.toFixed(1);
-  if (swing !== pointerPlay.swingShown) {
-    cursorSwing.style.transform = `rotate(${swing}deg)`;
-    pointerPlay.swingShown = swing;
-  }
-
-  // Over him it darkens and rings, even when he walks under a still mouse.
-  const overHim = pointerPlay.visible && !inkCursor.classList.contains('is-over-action') &&
-    figurePointerHit(pointerPlay.x, pointerPlay.y);
-  inkCursor.classList.toggle('is-on-figure', overHim);
-}
-
-if (inkCursor && finePointer.matches) {
-  document.documentElement.classList.add('has-ink-cursor');
-
-  function updateCursorPos(clientX, clientY) {
-    pointerPlay.lastX = pointerPlay.x = clientX;
-    pointerPlay.lastY = pointerPlay.y = clientY;
-    // Immediate 1:1 hardware synchronization (zero frame latency)
-    placeCursor(clientX, clientY);
-  }
-
+if (finePointer.matches) {
   window.addEventListener('pointermove', (event) => {
     if (event.pointerType === 'touch') return;
     const now = performance.now();
     const elapsed = Math.max(8, now - pointerPlay.lastMove);
     const distance = Math.hypot(event.clientX - pointerPlay.lastX, event.clientY - pointerPlay.lastY);
     pointerPlay.speed = (distance / elapsed) * 1000;
-    pointerPlay.velocityX = mix(pointerPlay.velocityX, ((event.clientX - pointerPlay.lastX) / elapsed) * 1000, 0.5);
     pointerPlay.lastMove = now;
     pointerPlay.visible = true;
-
-    updateCursorPos(event.clientX, event.clientY);
-
-    const isOverInteractive = Boolean(event.target.closest('button, a, summary, [role="tab"], [role="button"], input, select, textarea, .navbar, .about-paper, .projects-sheet, .line-sheet, .sprint-hint, .stop-hit, .scene.has-clicks .click-hit:not(.is-off), .sky-stars.is-wishable i'));
-    inkCursor.classList.toggle('is-over-action', isOverInteractive);
-    if (!isOverInteractive) {
-      inkCursor.classList.add('is-visible');
-    }
+    pointerPlay.lastX = pointerPlay.x = event.clientX;
+    pointerPlay.lastY = pointerPlay.y = event.clientY;
 
     const hitsFigure = figurePointerHit(event.clientX, event.clientY);
     if (hitsFigure && !pointerPlay.insideFigure) {
@@ -1332,17 +1278,12 @@ if (inkCursor && finePointer.matches) {
 
   window.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'touch') return;
-    inkCursor.classList.add('is-pressing');
     if (figurePointerHit(event.clientX, event.clientY)) {
       pointerPlay.cooldownUntil = Math.min(pointerPlay.cooldownUntil, performance.now());
       startPointerReaction('shove');
       sfx.swat();
     }
   }, { passive: true });
-
-  window.addEventListener('pointerup', () => inkCursor.classList.remove('is-pressing'), { passive: true });
-  window.addEventListener('pointercancel', () => inkCursor.classList.remove('is-pressing'), { passive: true });
-  window.addEventListener('blur', () => inkCursor.classList.remove('is-pressing'));
 
   document.documentElement.addEventListener('mouseenter', () => {
     pointerPlay.visible = true;
@@ -1351,8 +1292,6 @@ if (inkCursor && finePointer.matches) {
   document.documentElement.addEventListener('mouseleave', () => {
     pointerPlay.visible = false;
     pointerPlay.insideFigure = false;
-    inkCursor.classList.remove('is-visible');
-    inkCursor.classList.remove('is-pressing');
   });
 }
 
@@ -1367,27 +1306,133 @@ figure.before(speedLines);
 // Throws a puff of dust from world position x. It lives in the world layer,
 // so it hangs where it was kicked up while the camera follows him away. In
 // another `host` it is kicked up from (x, top) there.
+//
+// In the world the specks are drawn on one canvas each frame (drawDust)
+// rather than made as elements. At a sprint there are over a hundred at
+// once, and as elements each was restyled every frame and given a layer of
+// its own, which dropped frames. The canvas goes at the end of the world,
+// where each puff went, so the scenery drawn above the dust still is, and
+// the specks move just as `dust-kick` (styles.css) moves an element's.
+const worldDust = { specks: [], canvas: null, ctx: null, ink: '', fit: '', shown: false };
+
 function spawnDust(x, dir, unit, { count = 4, power = 1, host = world, top = 0 } = {}) {
   if (reducedMotion.matches) return;
-  const puff = document.createElement('span');
-  puff.className = 'dust';
-  puff.style.left = `${x.toFixed(1)}px`;
-  if (top) puff.style.top = `${top.toFixed(1)}px`;
+  const inWorld = host === world;
+  const born = document.timeline.currentTime ?? performance.now();
+  const puff = inWorld ? null : document.createElement('span');
+  if (puff) {
+    puff.className = 'dust';
+    puff.style.left = `${x.toFixed(1)}px`;
+    if (top) puff.style.top = `${top.toFixed(1)}px`;
+  }
   for (let i = 0; i < count; i += 1) {
-    const bit = document.createElement('i');
     const r = Math.random();
     const size = (6 + r * 8) * unit * power;
+    const dx = dir * (18 + Math.random() * 40) * unit * power;
+    const dy = -(5 + Math.random() * 20) * unit * power;
+    const life = Math.round(420 + Math.random() * 260);
+    const delay = Math.round(Math.random() * 60);
+    const alpha = 0.22 + Math.random() * 0.16;
+    if (!puff) {
+      worldDust.specks.push({ x, size, dx, dy, life, delay, alpha, born });
+      continue;
+    }
+    const bit = document.createElement('i');
     bit.style.setProperty('--size', `${size.toFixed(1)}px`);
-    bit.style.setProperty('--dx', `${(dir * (18 + Math.random() * 40) * unit * power).toFixed(1)}px`);
-    bit.style.setProperty('--dy', `${(-(5 + Math.random() * 20) * unit * power).toFixed(1)}px`);
-    bit.style.setProperty('--life', `${Math.round(420 + Math.random() * 260)}ms`);
-    bit.style.setProperty('--delay', `${Math.round(Math.random() * 60)}ms`);
-    bit.style.setProperty('--alpha', (0.22 + Math.random() * 0.16).toFixed(2));
+    bit.style.setProperty('--dx', `${dx.toFixed(1)}px`);
+    bit.style.setProperty('--dy', `${dy.toFixed(1)}px`);
+    bit.style.setProperty('--life', `${life}ms`);
+    bit.style.setProperty('--delay', `${delay}ms`);
+    bit.style.setProperty('--alpha', alpha.toFixed(2));
     puff.append(bit);
   }
-  host.append(puff);
-  window.setTimeout(() => puff.remove(), 900);
+  if (puff) {
+    host.append(puff);
+    window.setTimeout(() => puff.remove(), 900);
+    return;
+  }
+  if (!worldDust.canvas) {
+    worldDust.canvas = document.createElement('canvas');
+    worldDust.canvas.className = 'dust-canvas';
+    worldDust.canvas.setAttribute('aria-hidden', 'true');
+    worldDust.ctx = worldDust.canvas.getContext('2d');
+  }
+  if (world.lastElementChild !== worldDust.canvas) world.append(worldDust.canvas);
 }
+
+// dust-kick's cubic-bezier(0.15, 0.7, 0.3, 1): progress at time t (0 to 1),
+// from a table worked out once, as a sprint asks for it thousands of times
+// a second.
+const DUST_EASE = (() => {
+  const [x1, y1, x2, y2] = [0.15, 0.7, 0.3, 1];
+  const curve = (a, b, s) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  return Array.from({ length: 129 }, (_, i) => {
+    const t = i / 128;
+    let lo = 0;
+    let hi = 1;
+    for (let k = 0; k < 30; k += 1) {
+      const s = (lo + hi) / 2;
+      if (curve(x1, x2, s) < t) lo = s;
+      else hi = s;
+    }
+    return curve(y1, y2, (lo + hi) / 2);
+  });
+})();
+function dustEase(t) {
+  const f = t * 128;
+  const i = Math.min(127, Math.floor(f));
+  return DUST_EASE[i] + (DUST_EASE[i + 1] - DUST_EASE[i]) * (f - i);
+}
+
+// Draws the world's dust this frame. `offset` is how far the camera has
+// moved the world (its x translation), so the canvas stays over the screen
+// while the specks keep their places in the world.
+function drawDust(now, offset, unit) {
+  const { specks, canvas, ctx } = worldDust;
+  if (!canvas || (!specks.length && !worldDust.shown)) return;
+  // Tall enough for the biggest puff's rise (power 1.4, see spawnDust).
+  const above = Math.ceil(64 * unit) + 2;
+  const dpr = window.devicePixelRatio || 1;
+  const fit = `${sceneWidth}|${above}|${dpr}`;
+  if (fit !== worldDust.fit) {
+    worldDust.fit = fit;
+    canvas.width = Math.round(sceneWidth * dpr);
+    canvas.height = Math.round((above + 4) * dpr);
+    canvas.style.width = `${sceneWidth}px`;
+    canvas.style.height = `${above + 4}px`;
+    canvas.style.top = `${-above}px`;
+    worldDust.ink = getComputedStyle(world).getPropertyValue('--ink').trim() || '#20201f';
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const show = specks.length > 0;
+  if (show !== worldDust.shown) {
+    worldDust.shown = show;
+    canvas.hidden = !show;
+  }
+  if (!show) return;
+  canvas.style.transform = `translate3d(${(-offset).toFixed(2)}px, 0, 0)`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = worldDust.ink;
+  let kept = 0;
+  for (const speck of specks) {
+    const t = (now - speck.born - speck.delay) / speck.life;
+    if (t >= 1) continue; // it ends clear (dust-kick fills forwards)
+    specks[kept] = speck;
+    kept += 1;
+    if (t < 0) continue; // and is clear until it starts
+    const p = dustEase(t);
+    ctx.globalAlpha = speck.alpha * (1 - p);
+    ctx.beginPath();
+    ctx.arc(speck.x + offset + speck.dx * p, above - speck.size / 2 + speck.dy * p,
+      (speck.size / 2) * (0.35 + 1.15 * p), 0, 2 * Math.PI);
+    ctx.fill();
+  }
+  specks.length = kept;
+}
+matchMedia('(prefers-contrast: more)').addEventListener?.('change', () => {
+  worldDust.fit = ''; // picks up --ink again
+});
 
 /* ------------------------------------------------------------ nav route */
 
@@ -1436,6 +1481,15 @@ function drawIntroSpeech(now) {
 
 // Says `html` in the bubble over his head. A bubble already up shrinks away
 // into its tail first, and the new one pops out of it and draws in.
+// The bubble's width, for placing it each frame: read there, offsetWidth
+// would force style and layout in the middle of every frame it is up.
+let speechWidth = 0;
+let speechHeight = 0;
+function measureSpeech() {
+  speechWidth = introSpeech.offsetWidth;
+  speechHeight = introSpeech.offsetHeight;
+}
+if (introSpeech) new ResizeObserver(measureSpeech).observe(introSpeech, { box: 'border-box' });
 let speechTimer = 0;
 function speak(html) {
   if (!introSpeech) return;
@@ -1444,7 +1498,7 @@ function speak(html) {
     introSpeechCopy.innerHTML = html;
     introSpeech.hidden = false;
     introSpeech.classList.remove('is-dismissed', 'is-popping');
-    void introSpeech.offsetWidth; // so the pop plays again
+    measureSpeech(); // so the pop plays again (and its size, for placing it)
     introSpeech.classList.add('is-popping');
     introSpeechStart = performance.now();
     const words = [...introSpeechCopy.children]
@@ -3238,24 +3292,29 @@ function updateBuild(dt, inView) {
 function drawBuild(camera, dt) {
   const { parts, hammer } = buildState(build.time);
   const svg = (tag) => document.createElementNS('http://www.w3.org/2000/svg', tag);
+  // Only what changed is written: a class set, even to what it was, makes
+  // the page check its body:has() rules again.
+  const set = (el, name, value) => {
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  };
   const items = parts.map((part) => ({
     depth: camera.project(add(part.at, [0, partHeight(part.def) / 2, 0])).depth,
     draw(el) {
       const { body, lines } = partShape(camera, part.def, part.at, part.grow);
-      el.firstChild.setAttribute('class', `bench-cam__part bench-cam__part--${part.def.color}`);
-      el.firstChild.setAttribute('d', body);
-      el.lastChild.setAttribute('class', 'bench-cam__part-lines');
-      el.lastChild.setAttribute('d', lines);
+      set(el.firstChild, 'class', `bench-cam__part bench-cam__part--${part.def.color}`);
+      set(el.firstChild, 'd', body);
+      set(el.lastChild, 'class', 'bench-cam__part-lines');
+      set(el.lastChild, 'd', lines);
     },
   }));
   items.push({
     depth: camera.project(mean([hammer.grip, hammer.head])).depth,
     draw(el) {
       const shape = hammerShape(camera, hammer.grip, hammer.head, hammer.roll);
-      el.firstChild.setAttribute('class', 'bench-cam__part bench-cam__part--amber');
-      el.firstChild.setAttribute('d', shape.handle);
-      el.lastChild.setAttribute('class', 'bench-cam__part bench-cam__part--ink');
-      el.lastChild.setAttribute('d', shape.head);
+      set(el.firstChild, 'class', 'bench-cam__part bench-cam__part--amber');
+      set(el.firstChild, 'd', shape.handle);
+      set(el.lastChild, 'class', 'bench-cam__part bench-cam__part--ink');
+      set(el.lastChild, 'd', shape.head);
     },
   });
   items.sort((a, b) => b.depth - a.depth);
@@ -3265,12 +3324,16 @@ function drawBuild(camera, dt) {
     benchBuild.append(el);
     build.partEls.push(el);
   }
+  // Drawn farthest first: a shown slot is moved to the end only when it is
+  // not already just after the one before it, since each move costs a layout.
+  let after = null;
   build.partEls.forEach((el, slot) => {
     const item = items[slot];
     el.toggleAttribute('hidden', !item);
     if (!item) return;
     item.draw(el);
-    benchBuild.append(el);
+    if (after && el.previousElementSibling !== after) benchBuild.append(el);
+    after = el;
   });
 
   // Sparks where a part lands or the hammer strikes, since the last frame.
@@ -3353,6 +3416,22 @@ function buildJoints(p, standX, spread, w) {
 // leave room on the right; `markX` is the mark's x on screen, `rise` how far
 // the camera has climbed with him at the Experience tower, and `standX` is
 // where he stands, in units from the mark.
+// What the bench and the build were last drawn with (drawBench).
+const benchDrawn = { shape: '', x: 0, y: 0, seq: null, buildAt: 0, buildX: 0, buildY: 0, sparks: false };
+
+// Moves drawn SVG over by (dx, dy), writing only when that changes. (A
+// layer of its own, moved by the compositor, is no good here: SVG leaves out
+// what was off screen when it was drawn, so that would never show.)
+function shiftDrawn(els, dx, dy) {
+  const [x, y] = [dx.toFixed(2), dy.toFixed(2)];
+  const to = Number(x) || Number(y) ? `translate(${x} ${y})` : '';
+  for (const el of els) {
+    if ((el.getAttribute('transform') || '') === to) continue;
+    if (to) el.setAttribute('transform', to);
+    else el.removeAttribute('transform');
+  }
+}
+
 function drawBench(u, aside, unit, markX, rise, figurePose, standX, spread, now = performance.now(), dt = 0.016) {
   const onScreen = markX + DESK.far * unit > -40 && markX + DESK.near * unit < sceneWidth + 40;
   const show = u > 0 || onScreen;
@@ -3365,9 +3444,9 @@ function drawBench(u, aside, unit, markX, rise, figurePose, standX, spread, now 
 
   const e = smoother(u);
   const flat = { x: markX + PIVOT[0] * unit, y: floorY + 1 + rise - PIVOT[1] * unit };
-  let camera;
+  let lens;
   if (e === 0) {
-    camera = orbitCamera({ yaw: 0, pitch: 0, invDistance: 0, scale: unit, ...flat });
+    lens = { yaw: 0, pitch: 0, invDistance: 0, scale: unit, ...flat };
   } else {
     let shot = benchShot(0, sceneWidth, sceneHeight);
     if (aside > 0) {
@@ -3383,30 +3462,53 @@ function drawBench(u, aside, unit, markX, rise, figurePose, standX, spread, now 
         y: mix(shot.y, slid.y, a),
       };
     }
-    camera = orbitCamera({
+    lens = {
       yaw: 90 * e,
       pitch: mix(CAMERA_PITCH, BUILD_PITCH, ease(aside)) * e,
       invDistance: e / CAMERA_DISTANCE,
       scale: unit * (shot.scale / unit) ** e,
       x: mix(flat.x, shot.x, e),
       y: mix(flat.y, shot.y, e),
-    });
+    };
   }
+  const camera = orbitCamera(lens);
 
-  // A soft shadow on the floor keeps the bench and him grounded once the
-  // floor line has faded. Seen side-on it is edge-on, so it starts unseen.
-  let shadow = '';
-  for (const size of [1, 0.78, 0.56]) shadow += `${polyline(camera, SHADOW.map(([x, z]) => [
-    SHADOW_CENTRE + x * size, 0, z * size,
-  ]))}Z`;
-  benchShadow.setAttribute('d', shadow);
+  // Where the camera is on screen only shifts every point it draws (see
+  // orbitCamera). So while it looks from the same angle, and the build is
+  // not moving, what was drawn is moved over rather than drawn again, as it
+  // is every frame that he walks past or stands at the bench.
+  const shape = `${lens.yaw}|${lens.pitch}|${lens.invDistance}|${lens.scale}`;
+  const buildAt = build.seq ? Math.min(build.time, build.seq.end) : 0;
+  const benchStill = shape === benchDrawn.shape;
+  const buildStill = benchStill && build.seq === benchDrawn.seq && buildAt === benchDrawn.buildAt &&
+    !build.sparks.length && !benchDrawn.sparks;
+
   benchShadow.style.opacity = (0.035 * e).toFixed(3);
-
   benchLayer.style.setProperty('--zoom', (1 + 0.4 * e).toFixed(3));
-  drawBenchPieces(camera);
-  drawBuild(camera, dt);
+  if (benchStill) {
+    shiftDrawn([benchShadow, benchLayer], lens.x - benchDrawn.x, lens.y - benchDrawn.y);
+  } else {
+    // A soft shadow on the floor keeps the bench and him grounded once the
+    // floor line has faded. Seen side-on it is edge-on, so it starts unseen.
+    let shadow = '';
+    for (const size of [1, 0.78, 0.56]) shadow += `${polyline(camera, SHADOW.map(([x, z]) => [
+      SHADOW_CENTRE + x * size, 0, z * size,
+    ]))}Z`;
+    benchShadow.setAttribute('d', shadow);
+    drawBenchPieces(camera);
+    shiftDrawn([benchShadow, benchLayer], 0, 0);
+    Object.assign(benchDrawn, { shape, x: lens.x, y: lens.y });
+  }
+  if (buildStill) {
+    shiftDrawn([benchBuild], lens.x - benchDrawn.buildX, lens.y - benchDrawn.buildY);
+  } else {
+    drawBuild(camera, dt);
+    shiftDrawn([benchBuild], 0, 0);
+    Object.assign(benchDrawn, { seq: build.seq, buildAt, buildX: lens.x, buildY: lens.y, sparks: build.sparks.length > 0 });
+  }
   if (drawHim) drawFigure(camera, buildJoints(figurePose, standX, spread, ease(aside)), e);
 }
+
 
 /* ---------------------------------------------------- experience course
    The Experience stop is a city block, and arriving there he takes it on
@@ -6506,13 +6608,13 @@ function armTo(shoulder, target, pole) {
 function placeLapSpeech(unit) {
   const head = lapView.head;
   if (!head || !introSpeech || introSpeech.hidden) return;
-  const half = introSpeech.offsetWidth / 2;
+  const half = speechWidth / 2;
   const tail = 0.17 * half; // as frame() places it: the tail a little right of the middle
   const left = parseFloat(introSpeech.style.left) || sceneWidth / 2;
   const x = mix(left, head.x - tail, head.k);
   introSpeech.style.left = `${clamp(x, half + 8, sceneWidth - half - 8).toFixed(1)}px`;
   const side = floorY - UNITS_TALL * unit - 18; // where the bubble's foot is, side on
-  const foot = clamp(mix(side, head.y - head.r - 12, head.k), navHeight + introSpeech.offsetHeight + 8, sceneHeight - 8);
+  const foot = clamp(mix(side, head.y - head.r - 12, head.k), navHeight + speechHeight + 8, sceneHeight - 8);
   introSpeech.style.bottom = `${(sceneHeight - foot).toFixed(1)}px`;
 }
 
@@ -6622,7 +6724,6 @@ let last = 0;
 function frame(now) {
   const dt = last ? clamp((now - last) / 1000, 0, 0.05) : 0;
   last = now;
-  updateInkCursor(dt);
   drawIntroSpeech(now);
 
   const unit = figureUnit;
@@ -7005,7 +7106,7 @@ function frame(now) {
     // Over his head, but kept on screen when the opening frames him near an
     // edge. The numbers mirror .intro-speech's width and tail offset. From
     // behind him in the opening, placeLapSpeech moves it on from here.
-    const half = introSpeech.offsetWidth / 2;
+    const half = speechWidth / 2;
     const tail = 0.17 * half; // the tail sits a little right of the middle
     const middle = clamp(sceneWidth / 2 + frameShift + walkingOn - tail, half + 8, sceneWidth - half - 8);
     introSpeech.style.left = `${middle.toFixed(1)}px`;
@@ -7064,6 +7165,7 @@ function frame(now) {
 
   const worldTransform = `translate3d(${(sceneWidth / 2 - renderX + frameShift).toFixed(2)}px, ${sceneRise.toFixed(2)}px, 0)`;
   world.style.transform = worldTransform;
+  drawDust(now, Number((sceneWidth / 2 - renderX + frameShift).toFixed(2)), unit);
   livingView({ renderX, shift: frameShift, rise: sceneRise, transform: worldTransform, unit }); // living: where the camera is
   placeRunner(state.x, 1 + (isTurboActive ? 2.8 : 1.6) * runBlend * moveBlend); // a dot at rest, a dash at a sprint
 
@@ -7733,6 +7835,9 @@ function typePose(p, t, now) {
 // Draws the console, and him with it once the camera is moving. `u` is how
 // far round the camera has come, `markX` the mark's x on screen and `standX`
 // where he stands, in units from it.
+// What the console was last drawn with (drawTerminal).
+const termDrawn = { shape: '', x: 0, y: 0 };
+
 function drawTerminal(u, unit, markX, rise, figurePose, standX) {
   const onScreen = markX + 30 * unit > -40 && markX - 60 * unit < sceneWidth + 280 * unit;
   const show = u > 0 || onScreen;
@@ -7744,12 +7849,12 @@ function drawTerminal(u, unit, markX, rise, figurePose, standX) {
 
   const e = smoother(u);
   const flat = { x: markX + TERM_PIVOT[0] * unit, y: floorY + 1 + rise - TERM_PIVOT[1] * unit };
-  let camera;
+  let lens;
   if (e === 0) {
-    camera = orbitCamera({ yaw: 0, pitch: 0, invDistance: 0, scale: unit, ...flat, pivot: TERM_PIVOT });
+    lens = { yaw: 0, pitch: 0, invDistance: 0, scale: unit, ...flat, pivot: TERM_PIVOT };
   } else {
     const shot = termShot();
-    camera = orbitCamera({
+    lens = {
       yaw: TERM_YAW * e,
       pitch: TERM_PITCH * e,
       invDistance: e / TERM_DISTANCE,
@@ -7757,10 +7862,19 @@ function drawTerminal(u, unit, markX, rise, figurePose, standX) {
       x: mix(flat.x, shot.x, e),
       y: mix(flat.y, shot.y, e),
       pivot: TERM_PIVOT,
-    });
+    };
   }
+  const camera = orbitCamera(lens);
   termLayer.style.setProperty('--zoom', (1 + 0.5 * e).toFixed(3));
-  drawTermModel(camera);
+  // As at the bench: from the same angle the console is moved, not redrawn.
+  const shape = `${lens.yaw}|${lens.pitch}|${lens.invDistance}|${lens.scale}`;
+  if (shape === termDrawn.shape) {
+    shiftDrawn([termLayer], lens.x - termDrawn.x, lens.y - termDrawn.y);
+  } else {
+    drawTermModel(camera);
+    shiftDrawn([termLayer], 0, 0);
+    Object.assign(termDrawn, { shape, x: lens.x, y: lens.y });
+  }
   termCam.classList.toggle('is-on', term.power);
   if (drawHim) drawFigure(camera, figureJoints(figurePose, standX, 0), e, termRig);
   placeTermScreen(camera);

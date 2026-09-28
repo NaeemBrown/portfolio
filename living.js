@@ -503,6 +503,28 @@ function livingView(next) {
   // Once the world is where it is this frame: the sun sets behind its floor.
   updateSky();
   updateChorus(performance.now());
+  updateWorldGone();
+}
+
+// Whether the world can't be seen at all: with the camera round at the
+// bench, the terminal or the board, frame() fades it (and the sky) right
+// out. Its endless animations rest meanwhile (restWhenAway), the stars too.
+let worldGone = false;
+function updateWorldGone() {
+  const gone = livingScene.style.getPropertyValue('--project-world-opacity') === '0.0000';
+  if (gone === worldGone) return;
+  worldGone = gone;
+  worldSight.fade?.(gone);
+  starsOut();
+}
+// The stars and the Milky Way are out of sight by day and while the world
+// is gone; then the stars stop twinkling, and the Milky Way (a big SVG with
+// blurs) isn't drawn at all: it was being rastered again every frame of the
+// chalkboard's show, now and then for a third of a second.
+function starsOut() {
+  const out = worldGone || (skyClock.look?.stars ?? 1) < 0.0005;
+  skyStars?.classList.toggle('is-out', out);
+  skyGalaxy?.classList.toggle('is-out', out);
 }
 
 // World px `x` on screen, and whether it is within `margin` px of it.
@@ -511,6 +533,60 @@ const onScreen = (x, margin = 0) => {
   const sx = screenX(x);
   return sx > margin && sx < sceneWidth - margin;
 };
+
+// Every looping animation costs a restyle each frame, and a repaint if it
+// is drawn in SVG, whether it is seen or not. So the ones in the world (the
+// camp fire, the lamps' LEDs, the glints on things to click) rest while
+// their part of it is over half a screen away, or the whole world is faded
+// out (updateWorldGone), and carry on from where they were when it's back. Only endless ones: anything that runs once
+// still ends when it should.
+const worldSight = { fade: null }; // restWhenAway's, once it has started
+function restWhenAway() {
+  const resting = new Map(); // each thing resting -> its animations paused
+  const near = new Set(); // things within half a screen
+  let faded = false; // the whole world faded out (updateWorldGone)
+  const rest = (el) => {
+    if (resting.has(el)) return;
+    const paused = el.getAnimations({ subtree: true })
+      .filter((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations === Infinity);
+    paused.forEach((a) => a.pause());
+    resting.set(el, paused);
+  };
+  const wake = (el) => {
+    resting.get(el)?.forEach((a) => {
+      if (a.playState === 'paused') a.play();
+    });
+    resting.delete(el);
+  };
+  const sight = new IntersectionObserver((entries) => {
+    for (const { target, isIntersecting } of entries) {
+      if (isIntersecting) near.add(target);
+      else near.delete(target);
+      if (isIntersecting && !faded) wake(target);
+      else rest(target);
+    }
+  }, { rootMargin: '0px 50% 0px 50%' });
+  worldSight.fade = (gone) => {
+    faded = gone;
+    near.forEach(gone ? rest : wake);
+  };
+  const watch = (el) => {
+    if (el instanceof Element && !el.classList.contains('dust-canvas')) sight.observe(el);
+  };
+  for (const layer of [world, worldLights]) {
+    if (!layer) continue;
+    [...layer.children].forEach(watch);
+    new MutationObserver((changes) => changes.forEach((change) => {
+      change.addedNodes.forEach(watch);
+      change.removedNodes.forEach((el) => {
+        if (el.isConnected) return; // only moved
+        sight.unobserve(el);
+        resting.delete(el);
+        near.delete(el);
+      });
+    })).observe(layer, { childList: true });
+  }
+}
 
 // Once the world is built (script.js calls this last).
 function startLiving() {
@@ -530,6 +606,7 @@ function startLiving() {
   updateSwitches(performance.now(), true);
   incident.cooldownUntil = performance.now() + 20e3; // not straight away
   startClickables(); // clickables.js: after the scenery, on the same promise
+  restWhenAway();
   // After buildSurroundings, which script.js queued on the same promise first.
   document.fonts.ready.then(() => {
     updateFixedCount();
@@ -2212,7 +2289,7 @@ function paintSky(force = false) {
   setStyle(worldLights, '--lights', look.lights.toFixed(3));
   setStyle(skyStars, '--stars', look.stars.toFixed(3));
   setStyle(skyGalaxy, '--stars', look.stars.toFixed(3));
-  skyStars?.classList.toggle('is-out', look.stars < 0.0005);
+  starsOut();
   setStyle(skyMist, '--mist', look.mist.toFixed(3));
   if (skyMist) skyMist.hidden = look.mist < 0.005;
   const part = livingDaypartName(hour);
@@ -3641,7 +3718,7 @@ function updateTermNudge() {
   const y = Number(head.getAttribute('cy'));
   const r = Number(head.getAttribute('r'));
   if (!r) return;
-  const half = introSpeech.offsetWidth / 2;
+  const half = speechWidth / 2; // script.js keeps it, so as not to force a layout here
   const tail = 0.17 * half; // as frame() places it: the tail a little right of the middle
   introSpeech.style.left = `${clamp(x - tail, half + 8, sceneWidth - half - 8).toFixed(1)}px`;
   introSpeech.style.bottom = `${(sceneHeight - (y - r) + 12).toFixed(1)}px`;

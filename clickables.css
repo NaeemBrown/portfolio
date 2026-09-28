@@ -19,13 +19,6 @@
   touch-action: manipulation;
 }
 
-@media (pointer: fine) {
-  html.has-ink-cursor .scene.has-clicks .click-hit:not(.is-off),
-  html.has-ink-cursor .sky-stars.is-wishable i {
-    cursor: pointer !important;
-  }
-}
-
 /* ------------------------------------------------------ the letters */
 
 /* A letter rung: it jumps, settles with a bounce, and glows as it sounds.
@@ -244,6 +237,7 @@
 /* At night the stars take clicks, each over a wider patch than it looks. */
 .sky-stars.is-wishable i {
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .sky-stars.is-wishable i::after {

@@ -19,6 +19,8 @@ Systematic audit and bug hunting log for the CV3 interactive portfolio codebase.
 | BUG-009 | Unsuppressed idle animation (phone check) causes ambient state wait timeout in `test_wind.js` | Low | `scratch/living/test_wind.js` | Resolved |
 | BUG-010 | After a World Secret is clicked with the mouse, Space presses it again instead of sprinting | Medium | `clickables.js` | Resolved |
 | BUG-011 | Headless PDF build script (`cv/build-pdf.cjs`) fails on 64-bit Edge systems due to hardcoded x86 path | Low | `cv/build-pdf.cjs` | Resolved |
+| BUG-012 | Frame drops: sprinting ran at about 72 fps on a 144 Hz screen, walking to a stop at 74 to 90, and the first key press froze the page for 160 ms | High | `script.js`, `living.js`, `chalkboard.js`, CSS | Resolved |
+| BUG-013 | The Experience chalkboard's show ran at 40 to 80 fps on a 144 Hz screen | High | `chalkboard.js`, `chalkboard.css`, `living.js`, `living.css` | Resolved |
 
 ---
 
@@ -418,6 +420,68 @@ The executable path was statically hardcoded to the 32-bit `Program Files (x86)`
    ```
    wrote cv\Naeem-Brown-CV.pdf (143 KB)
    ```
+
+---
+
+### BUG-012: Frame drops while moving, at the stops, and on the first key press
+
+- **Severity**: High (the world visibly stutters in normal use)
+- **Status**: Resolved
+- **Component**: `script.js` (`spawnDust`, `drawDust`, `drawBench`, `drawBuild`, `drawTerminal`, `shiftDrawn`, `speak`, `SoundEngine`), `living.js` (`restWhenAway`, `updateWorldGone`, `starsOut`, `updateTermNudge`), `chalkboard.js` (`drawBoard`, `placeBubble`), `entrance-variants.css`, `living.css`, `styles.css`
+
+#### How It Was Found
+1. Measured in real Chrome in a visible window with the GPU on (Intel UHD, 144 Hz screen, 1440 x 900 window). The test harness's headless Edge with the GPU off shows neither the screen's rate nor the drawing cost. The probe is now `node scratch/perf_frames.js` (`--trace`, `--night`).
+2. Before the fix, standing still kept the main thread about 80% busy (808 ms of work a second). Sprinting ran at about 72 fps, walking to Projects at 90, walking to Skills at 74, the Projects sheet at 105 and the terminal at 86.
+3. Chrome traces with invalidation tracking, layer snapshots (`LayerTree`) and CPU profiles showed what each frame restyled, repainted and composited.
+
+#### Root Cause
+The rAF loop draws every frame, so the browser restyles, repaints and composites everything touched on each one, and every running CSS animation is restyled each frame whether or not it can be seen:
+- **Invisible animations:** the entrance preview's 76 rain and snow drops fell forever at `opacity: 0`; the 58 stars twinkled by day and behind the close ups; the mug's steam ran while the mug was put away; the camp fire, the lamps' LEDs and the click glints ran while far off screen.
+- **Dust:** every speck was an element with its own CSS animation and compositor layer, and the sprint's dust was thrown once per frame, so a 144 Hz screen made 2.4 times as much as a 60 Hz one: over a hundred layers created and destroyed a second.
+- **Redrawing still scenery:** the bench and the terminal rewrote the `d` of every path each frame, even with the camera still, and the build re-appended its parts each frame (each append also made the page re-check its `body:has()` rules).
+- **Forced layout:** `introSpeech.offsetWidth` was read each frame while a bubble was up (in `frame()`, `updateTermNudge`, `placeLapSpeech` and the chalkboard's `placeBubble`), after styles had been written, forcing a whole style and layout mid-frame.
+- **Needless writes:** `skipButton.hidden = true` every frame invalidated the `body:has(.chalk-skip:not([hidden]))` rules.
+- **First key press:** `sfx.ensureReady()` made the `AudioContext` on the first gesture even with the sound off, and making it blocks the page for about 160 ms on Windows.
+
+#### Resolution / Applied Fix
+1. The rain and snow are hidden with `display: none`; the stars get `is-out` (`animation: none`) by day and while the world is faded out; the steam pauses while the mug's `opacity` is 0.
+2. `restWhenAway()` pauses the endless animations of anything in the world, or on its lights layer, more than half a screen off screen (an `IntersectionObserver`), or while the whole world is faded out at a close up, and plays them again from where they were. Animations that run once are left alone.
+3. The world's dust is drawn on one canvas at the end of the world (`drawDust`), following `dust-kick` exactly (a screenshot comparison of the same seeded puffs matches to anti-aliasing).
+4. The bench, the build and the console are redrawn only when the camera's angle, pitch, distance or zoom changes (or the build moves); otherwise the drawn groups are moved with a `transform` attribute (`shiftDrawn`). A composited `will-change` group was tried and rejected: SVG leaves out what was off screen when it was painted, so the compositor moved a bench with its desk missing.
+5. The bubble's size is kept in `speechWidth` and `speechHeight` (measured in `speak()` and by a `ResizeObserver`); the chalk skip button's `hidden` and the build's `class` are written only on a change.
+6. With the sound off, no `AudioContext` is made until the sound is turned on.
+
+After, by day: standing uses 266 ms of the main thread a second (it was 808); standing, walking, the walk to Projects and the Projects sheet hold 144 fps; sprinting runs at 134 to 138 (it was 72); the walk to Skills at 131 to 144 (74); the terminal at 141 (86); the first key press no longer stalls. At night the moving scenes run at 121 to 133 fps: the rest there is the GPU compositing the night's blended layers, which no single layer accounts for.
+
+Verified: `node scratch/living/run_all.js` passed all 24 suites after the main changes; after the last ones, run at 21:20, 21 passed. The three that failed are not from this change. `test_timepicker` picks night when it is already night, so it follows the live clock, and between 21:00 and about 22:00 the sky is still going dark (the same kind of clock window as BUG-002; at a picked 23:00 all six lamps, the full wash and the stars check out). `test_controls` (moved exactly 10 px against a "more than 10" check) and `test_wind` (an idle act starting before the wait, as in BUG-009) each passed 3 of 3 run on their own. `node scratch/run_audio_test.js`: 18 passed.
+
+---
+
+### BUG-013: The Experience chalkboard's show ran at 40 to 80 fps
+
+- **Severity**: High (the site's longest set piece, about 65 seconds, stuttered throughout)
+- **Status**: Resolved
+- **Component**: `chalkboard.js` (`render`, `renderSvg`, `setD`, `paintBoard`, `paintEl`, `paintHim`, `showBoard`, `drawBoard`), `chalkboard.css`, `living.js` (`starsOut`), `living.css`
+
+#### How It Was Found
+1. Measured through the whole show in real Chrome with the GPU on (the method of BUG-012): 40 to 80 fps for most of it, with the main thread mostly idle (150 to 300 ms of work a second) and the GPU rastering about 900 ms a second.
+2. Replaying the same moment of the show (`alive.chalk.seek`) with parts hidden showed no single culprit: hiding the whole board's SVG gave 144 fps, and every part of it cost a little.
+3. The same paths drawn on a canvas instead ran at 120 fps.
+4. Chrome's layer snapshots (`LayerTree`) showed what else was rastered every frame of the show.
+
+#### Root Cause
+- The show's camera never stops, so the board's full-screen SVG changed every frame, and the browser rastered all of it again every frame, in tiles, on the GPU: slate, frame, rules, ladder, lamp, hundreds of chalk strokes, the thick smudge strokes and his double drop-shadow.
+- Invisible layers were rastered every frame too: the lamp's light (`.chalk-glow`, with blur filters) by day and with the lamp off, and the Milky Way (`.sky-galaxy`, a big SVG with blurs) by day and behind the close up, both only transparent.
+
+#### Resolution / Applied Fix
+1. The board is painted on a canvas (`.chalk-canvas`) in the SVG's place (`paintBoard`). `render()` still builds the SVG, which says what to draw and in what order; `chalkboard.css` still says how each thing looks (read once per element from a bare copy of it, `lookOf`). The paths go in `pathData` (`setD`) rather than into the SVG, since writing hundreds of them into it every frame cost as much as painting them. He is painted on a canvas of his own and put down through his CSS filter, so his paper edge goes round all of him.
+2. Once the camera holds still (his idles at the finished board), everything before him is painted once onto a kept canvas, and only he and the dust are painted each frame until it changes.
+3. The lamp's light is hidden while the lamp is off or the hour's lights are out, and the Milky Way gets `is-out` (`display: none`) with the stars (`starsOut`).
+4. `test_chalkboard.js` reads a stroke's path through `alive.chalk.pathOf(el)`. `alive.chalk.mirror(true)` writes the paths into the SVG too; showing the SVG in place of the canvas at seven frozen moments of the show, they match to within anti-aliasing at the edges (under 1% of pixels off by more than 8/255).
+
+Verified: `node scratch/living/run_all.js`, run at 00:10, passed 23 of 24 suites (`test_chalkboard` 47 of 47). `test_timepicker`'s "on through the evening, not jumping" failed because it was past midnight: picking night then follows the live clock round past 24:00 to 0:10, and the check expects the hour to keep rising. That is the clock window noted under BUG-012, not this change.
+
+After: 96 to 141 fps through the show (the densest stretch, 41 to 62 s, 96 to 120) and 134 to 136 at the finished board. A few one-off stalls of 60 to 370 ms remain at particular moments (the old SVG board had one of about 470 ms at 8.6 s). They are the GPU busy in the driver with none of its time traced, persist with any single part of the board hidden, and didn't happen at all with Chrome's layer inspector on, so their cause isn't found.
 
 ---
 

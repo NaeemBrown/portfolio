@@ -1,6 +1,24 @@
 /* The Experience chalkboard (chalkboard.js). It shares .bench-cam's layer,
    between the world and him, and its line style; stroke widths are set by
-   chalkboard.js so lines can thicken as the camera closes in. */
+   chalkboard.js so lines can thicken as the camera closes in.
+
+   The SVG is the record of what is drawn and these rules say how it looks,
+   but it is painted onto .chalk-canvas in its place (chalkboard.js,
+   paintBoard): the browser rastering the whole SVG every frame of the show
+   was too slow. */
+.bench-cam.chalk-cam {
+  display: none;
+}
+
+.chalk-canvas {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 
 .chalk-cam__floor {
   opacity: 0;

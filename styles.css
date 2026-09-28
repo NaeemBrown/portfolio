@@ -58,195 +58,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* An ink arrow stands in for the pointer on mouse/trackpad devices.
-   Over UI controls, the native cursor is always visible and responsive.
-   Over the world canvas, the arrow tracks with zero latency. */
-@media (pointer: fine) {
-  html.has-ink-cursor .scene {
-    cursor: none;
-  }
-
-  /* Native responsive pointer on all interactive controls */
-  html.has-ink-cursor button,
-  html.has-ink-cursor a,
-  html.has-ink-cursor input,
-  html.has-ink-cursor select,
-  html.has-ink-cursor textarea,
-  html.has-ink-cursor [role="button"],
-  html.has-ink-cursor [role="tab"],
-  html.has-ink-cursor .navbar,
-  html.has-ink-cursor .navbar *,
-  html.has-ink-cursor .about-paper,
-  html.has-ink-cursor .about-paper *,
-  html.has-ink-cursor .sprint-hint,
-  html.has-ink-cursor .sprint-hint *,
-  html.has-ink-cursor .stop-hit {
-    cursor: pointer !important;
-  }
-
-  /* The Projects and Experience sheets are read, not clicked, save for their
-     buttons, which keep the pointer above. */
-  html.has-ink-cursor .projects-sheet,
-  html.has-ink-cursor .line-sheet {
-    cursor: default;
-  }
-
-  /* Hide the arrow over UI actions so it never obscures clickable targets */
-  html.has-ink-cursor .ink-cursor.is-over-action {
-    opacity: 0 !important;
-    pointer-events: none !important;
-  }
-}
-
-/* Every part of it turns about the arrow's tip, (5, 4) in its viewBox. */
-.ink-cursor {
-  position: fixed;
-  z-index: 2147483647;
-  top: 0;
-  left: 0;
-  width: 32px;
-  height: 36px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease;
-  will-change: transform;
-}
-
-.ink-cursor.is-visible {
-  opacity: 1;
-}
-
-.ink-cursor svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(2px 2.5px 0 rgba(32, 32, 31, 0.14));
-}
-
-.ink-cursor__swing,
-.ink-cursor__arrow,
-.ink-cursor__ring,
-.ink-cursor__ring circle,
-.ink-cursor__burst {
-  transform-box: view-box;
-  transform-origin: 5px 4px;
-}
-
-.ink-cursor__arrow {
-  transition: transform 110ms cubic-bezier(0.3, 1.4, 0.5, 1);
-}
-
-.ink-cursor__shape {
-  fill: var(--paper);
-  stroke: var(--ink);
-  stroke-width: 2.1;
-  stroke-linejoin: round;
-  transition: fill 140ms ease, stroke 140ms ease;
-}
-
-/* A faint stroke down its face, which turns to paper when it inks in. */
-.ink-cursor__shine {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0.18;
-  transition: stroke 140ms ease, opacity 140ms ease;
-}
-
-/* Over him: it inks in, edged in paper so it stands off his own ink, and
-   an amber ring turns round its tip. */
-.ink-cursor__ring {
-  opacity: 0;
-  transform: scale(0.3);
-  transition: opacity 140ms ease, transform 240ms cubic-bezier(0.3, 1.6, 0.5, 1);
-}
-
-.ink-cursor__ring circle {
-  fill: none;
-  stroke: var(--amber);
-  stroke-width: 1.8;
-  stroke-dasharray: 3.4 3.1;
-  stroke-linecap: round;
-}
-
-.ink-cursor.is-on-figure .ink-cursor__ring {
-  opacity: 1;
-  transform: none;
-}
-
-.ink-cursor.is-on-figure .ink-cursor__ring circle {
-  animation: cursor-ring 4s linear infinite;
-}
-
-.ink-cursor.is-on-figure .ink-cursor__shape {
-  fill: var(--ink);
-  stroke: var(--paper);
-}
-
-.ink-cursor.is-on-figure .ink-cursor__shine {
-  stroke: var(--paper);
-  opacity: 0.5;
-}
-
-/* A jab as it pokes him, a squash when pressed, and a burst of ink on
-   impact. */
-.ink-cursor.is-poking .ink-cursor__arrow {
-  transform: translate(-2px, -2px) scale(0.94);
-}
-
-.ink-cursor.is-pressing .ink-cursor__arrow {
-  transform: scale(0.84);
-}
-
-.ink-cursor__burst {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  opacity: 0;
-}
-
-.ink-cursor.is-swatted .ink-cursor__burst {
-  animation: cursor-burst 300ms ease-out both;
-}
-
-.ink-cursor.is-swatted .ink-cursor__arrow {
-  animation: cursor-recoil 280ms ease-out;
-}
-
-@keyframes cursor-ring {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes cursor-recoil {
-  0% { transform: scale(0.9) rotate(-14deg); }
-  40% { transform: scale(1.08) rotate(9deg); }
-  100% { transform: none; }
-}
-
-@keyframes cursor-burst {
-  0% { opacity: 0; transform: scale(0.5); }
-  28% { opacity: 0.85; }
-  100% { opacity: 0; transform: scale(1.5); }
-}
-
-@media (pointer: coarse) {
-  .ink-cursor {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ink-cursor,
-  .ink-cursor__arrow,
-  .ink-cursor__ring,
-  .ink-cursor__ring circle,
-  .ink-cursor__burst {
-    transition: none;
-    animation: none !important;
-  }
+/* The hand over anything that can be pressed. */
+button,
+a,
+[role="button"],
+[role="tab"] {
+  cursor: pointer;
 }
 
 button {
@@ -2876,6 +2693,13 @@ button {
   animation: dust-kick var(--life, 560ms) cubic-bezier(0.15, 0.7, 0.3, 1) var(--delay, 0ms) forwards;
 }
 
+/* The world's dust, drawn by script.js (drawDust) as dust-kick moves it. */
+.dust-canvas {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+
 @keyframes dust-kick {
   0% {
     opacity: var(--alpha, 0.2);
@@ -4488,6 +4312,7 @@ body:has(.case:not([hidden])) .contact-dock {
 
 @media (prefers-reduced-motion: reduce) {
   .dust,
+  .dust-canvas,
   .speed-lines {
     display: none;
   }

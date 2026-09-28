@@ -46,25 +46,25 @@
         } catch { /* Storage can be unavailable in private/restricted browsing. */ }
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="styles.css?v=20260928-perf-2" />
     <!-- living: the living world, see HANDOFF-living-world.md. living.js
          must load before script.js. -->
-    <link rel="stylesheet" href="living.css?v=20260926-perf-2" />
+    <link rel="stylesheet" href="living.css?v=20260928-perf-2" />
     <link rel="stylesheet" href="artifacts.css?v=20260926-clean-1" />
-    <link rel="stylesheet" href="entrance-variants.css?v=20260926-clean-1" />
+    <link rel="stylesheet" href="entrance-variants.css?v=20260927-perf-1" />
     <link rel="stylesheet" href="case.css?v=20260926-clean-1" />
-    <link rel="stylesheet" href="chalkboard.css?v=20260926-perf-1" />
+    <link rel="stylesheet" href="chalkboard.css?v=20260928-perf-2" />
     <link rel="stylesheet" href="teleports.css?v=20260926-clean-1" />
-    <link rel="stylesheet" href="clickables.css?v=20260926-finish-1" />
+    <link rel="stylesheet" href="clickables.css?v=20260928-perf-2" />
     <link rel="stylesheet" href="idles.css?v=20260926-idles-1" />
     <script src="gaits.js?v=20260926-clean-1" defer></script>
-    <script src="living.js?v=20260926-perf-2" defer></script>
+    <script src="living.js?v=20260928-perf-2" defer></script>
     <script src="teleports.js?v=20260926-clean-1" defer></script>
     <script src="clickables.js?v=20260926-finish-1" defer></script>
     <script src="idles.js?v=20260926-idles-1" defer></script>
     <script src="artifacts.js?v=20260926-clean-1" defer></script>
-    <script src="chalkboard.js?v=20260927-audio-1" defer></script>
-    <script src="script.js?v=20260927-audio-1" defer></script>
+    <script src="chalkboard.js?v=20260928-perf-2" defer></script>
+    <script src="script.js?v=20260928-perf-2" defer></script>
     <script src="case.js?v=20260926-clean-1" defer></script>
     <script src="entrance-variants.js?v=20260926-clean-1" defer></script>
   </head>
@@ -1014,19 +1014,5 @@
       </div>
     </div>
 
-    <!-- The cursor over the world, an arrow in his ink with its tip at (5, 4).
-         script.js moves it, swings it on its tip, and rings it over him. -->
-    <div class="ink-cursor" aria-hidden="true">
-      <svg viewBox="0 0 32 36">
-        <g class="ink-cursor__swing">
-          <g class="ink-cursor__ring"><circle cx="5" cy="4" r="9.5" /></g>
-          <g class="ink-cursor__arrow">
-            <path class="ink-cursor__shape" d="M5 4 5.4 25.5 10.6 20.6 14.6 29.8 18.6 28.1 14.7 19.2 21.8 18.6Z" />
-            <path class="ink-cursor__shine" d="M7.6 9.2 7.8 18.4" />
-          </g>
-          <path class="ink-cursor__burst" d="M2 1-1.5-2.5M5.6 0.2 6-4.6M1 5.2-3.6 5.8" />
-        </g>
-      </svg>
-    </div>
   </body>
 </html>

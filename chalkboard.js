@@ -1159,7 +1159,7 @@ const CHALKBOARD = (() => {
       stem: make('path', 'chalk-cam__lamp-stem', svg), shade: make('path', 'chalk-cam__lamp-shade', svg),
       ladder: make('path', 'chalk-cam__ladder', svg), wheels: make('path', 'chalk-cam__wheels', svg),
       shadow: make('path', 'chalk-cam__shadow', svg), man: make('g', 'chalk-cam__figure', svg),
-      part: {}, order: '', flat: null,
+      part: {}, order: '', flat: null, manBox: { x0: 0, y0: 0, x1: 0, y1: 0 },
     });
     for (const name of ['far-leg', 'near-leg', 'spine', 'far-upper', 'far-fore', 'near-upper', 'near-fore']) {
       const far = name.startsWith('far') ? 'is-far' : '';
@@ -1220,7 +1220,29 @@ const CHALKBOARD = (() => {
   const poly = (L, pts, close = false) => `M${pts.map((p) => at(L.project(p))).join('L')}${close ? 'Z' : ''}`;
   const quad = (L, x0, y0, x1, y1, z) => poly(L, [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], true);
 
+  // A path of the board's: kept here for the canvas (paintEl) rather than
+  // written into the SVG, which isn't shown. Writing hundreds of them into
+  // it every frame cost as much as painting them.
+  const pathData = new WeakMap();
+  let mirrorSvg = false; // tests: into the SVG too, to see it against the canvas
+  function setD(el, d) {
+    if (mirrorSvg && el.getAttribute('d') !== d) el.setAttribute('d', d);
+    if (pathData.get(el) === d) return;
+    pathData.set(el, d);
+    // Anything drawn before him is kept, and drawn again only on a change.
+    if (!els.man.contains(el) && !els.dust.includes(el)) paint.stale = true;
+  }
+
+  // Draws the board and him at this moment: into the SVG, which records
+  // it, then onto the canvas that shows it (paintBoard). Returns his head
+  // on screen, or null when he isn't drawn.
   function render(P, L, chalkT, ladderX, joints, lift) {
+    const head = renderSvg(P, L, chalkT, ladderX, joints, lift);
+    paintBoard();
+    return head;
+  }
+
+  function renderSvg(P, L, chalkT, ladderX, joints, lift) {
     if (!els) buildSvg(P);
     // Lines keep the site's weight, thickening a little as the camera closes
     // in, and more nearer to it.
@@ -1228,29 +1250,29 @@ const CHALKBOARD = (() => {
 
     els.floor.style.opacity = lift.toFixed(3);
     if (lift > 0.002) {
-      els.seam.setAttribute('d', seg(L, [-3000, 0, 0], [3000, 0, 0]));
+      setD(els.seam, seg(L, [-3000, 0, 0], [3000, 0, 0]));
       let rules = '';
       for (let i = -30; i <= 36; i++) rules += seg(L, [i * 56, 0, 0], [i * 56, 0, i % 4 === 0 ? 620 : 380]);
-      els.rules.setAttribute('d', rules);
+      setD(els.rules, rules);
     }
 
     const { x0, y0, w, h } = BOARD;
     const x1 = x0 + w;
     const y1 = y0 + h;
-    els.slate.setAttribute('d', quad(L, x0, y0, x1, y1, 0.5));
-    els.smudge.setAttribute('d', SMUDGES.map((pts) => poly(L, pts)).join(''));
+    setD(els.slate, quad(L, x0, y0, x1, y1, 0.5));
+    setD(els.smudge, SMUDGES.map((pts) => poly(L, pts)).join(''));
     els.smudge.style.strokeWidth = (26 * L.project([0, 250, 0]).s).toFixed(1);
-    els.frame.setAttribute('d', quad(L, x0 - 12, y0 - 12, x1 + 12, y1 + 12, 2) + quad(L, x0, y0, x1, y1, 2));
-    els.tray.setAttribute('d', poly(L, [[x0 - 12, y0 - 10, 0], [x1 + 12, y0 - 10, 0], [x1 + 12, y0 - 10, 14], [x0 - 12, y0 - 10, 14]], true) +
+    setD(els.frame, quad(L, x0 - 12, y0 - 12, x1 + 12, y1 + 12, 2) + quad(L, x0, y0, x1, y1, 2));
+    setD(els.tray, poly(L, [[x0 - 12, y0 - 10, 0], [x1 + 12, y0 - 10, 0], [x1 + 12, y0 - 10, 14], [x0 - 12, y0 - 10, 14]], true) +
       poly(L, [[x0 - 12, y0 - 10, 14], [x1 + 12, y0 - 10, 14], [x1 + 12, y0 - 16, 14], [x0 - 12, y0 - 16, 14]], true));
-    els.sticks.setAttribute('d', [330, 346, 362].map((x) => seg(L, [x, y0 - 9, 8], [x + 11, y0 - 9, 8])).join(''));
+    setD(els.sticks, [330, 346, 362].map((x) => seg(L, [x, y0 - 9, 8], [x + 11, y0 - 9, 8])).join(''));
     els.sticks.style.strokeWidth = (2.2 * L.project([346, y0, 8]).s).toFixed(2);
-    els.eraser.setAttribute('d', poly(L, [[-340, y0 - 9, 3], [-316, y0 - 9, 3], [-316, y0 - 9, 12], [-340, y0 - 9, 12]], true) +
+    setD(els.eraser, poly(L, [[-340, y0 - 9, 3], [-316, y0 - 9, 3], [-316, y0 - 9, 12], [-340, y0 - 9, 12]], true) +
       poly(L, [[-340, y0 - 9, 12], [-316, y0 - 9, 12], [-316, y0 - 4, 12], [-340, y0 - 4, 12]], true));
     const railMid = L.project([0, LADDER.topY, LADDER.topZ]);
-    els.rail.setAttribute('d', seg(L, [-560, LADDER.topY, LADDER.topZ], [560, LADDER.topY, LADDER.topZ]));
+    setD(els.rail, seg(L, [-560, LADDER.topY, LADDER.topZ], [560, LADDER.topY, LADDER.topZ]));
     els.rail.style.strokeWidth = weight(3.4, railMid.s);
-    els.brackets.setAttribute('d', [-520, 0, 520].map((x) => seg(L, [x, LADDER.topY, 0], [x, LADDER.topY, LADDER.topZ])).join(''));
+    setD(els.brackets, [-520, 0, 520].map((x) => seg(L, [x, LADDER.topY, 0], [x, LADDER.topY, LADDER.topZ])).join(''));
     els.brackets.style.strokeWidth = weight(3, railMid.s);
 
     // The chalk: side-on, each stroke is fixed and the group is moved;
@@ -1266,7 +1288,7 @@ const CHALKBOARD = (() => {
     for (const s of P.chalk) {
       // Not written yet, never to be, or rubbed out.
       if (!s.times || s.times[0] > chalkT || s.goneAt <= chalkT) {
-        if (s.shown !== false) s.el.setAttribute('d', '');
+        if (s.shown !== false) setD(s.el, '');
         s.shown = false;
         continue;
       }
@@ -1274,7 +1296,7 @@ const CHALKBOARD = (() => {
       if (flat && whole) {
         if (s.shown !== true || els.flat !== true) {
           s.shown = true;
-          s.el.setAttribute('d', s.flatD);
+          setD(s.el, s.flatD);
           s.el.style.strokeWidth = s.w;
         }
         continue;
@@ -1292,7 +1314,7 @@ const CHALKBOARD = (() => {
       }
       s.shown = null;
       if (flat) {
-        s.el.setAttribute('d', `M${pts.map(([u, v]) => `${(x0 + u).toFixed(1)} ${(y0 + v).toFixed(1)}`).join('L')}`);
+        setD(s.el, `M${pts.map(([u, v]) => `${(x0 + u).toFixed(1)} ${(y0 + v).toFixed(1)}`).join('L')}`);
         s.el.style.strokeWidth = s.w;
         continue;
       }
@@ -1302,7 +1324,7 @@ const CHALKBOARD = (() => {
         sum += q.s;
         return at(q);
       });
-      s.el.setAttribute('d', `M${qs.join('L')}`);
+      setD(s.el, `M${qs.join('L')}`);
       s.el.style.strokeWidth = Math.max(0.6, (s.w * sum) / qs.length).toFixed(2);
     }
     els.flat = flat;
@@ -1318,7 +1340,7 @@ const CHALKBOARD = (() => {
       const y = k * RUNG;
       lines += seg(L, [ladderX - LADDER.half, y, ladderZ(y)], [ladderX + LADDER.half, y, ladderZ(y)]);
     }
-    els.ladder.setAttribute('d', lines);
+    setD(els.ladder, lines);
     els.ladder.style.strokeWidth = weight(3, L.project([ladderX, 200, ladderZ(200)]).s);
     let wheels = '';
     for (const sx of [-1, 1]) {
@@ -1327,22 +1349,22 @@ const CHALKBOARD = (() => {
         wheels += poly(L, Array.from({ length: 12 }, (_, i) => add(hub, [0, 5 * Math.cos(i * 0.5236), 5 * Math.sin(i * 0.5236)])), true);
       }
     }
-    els.wheels.setAttribute('d', wheels);
+    setD(els.wheels, wheels);
     els.wheels.style.strokeWidth = weight(2.4, L.project([ladderX, 5, LADDER.baseZ]).s);
 
     // The lamp over the board, and its light.
     const X1 = [1, 0, 0];
-    els.stem.setAttribute('d', poly(L, [LAMP.foot, LAMP.wall, LAMP.arm, LAMP.neck]) +
+    setD(els.stem, poly(L, [LAMP.foot, LAMP.wall, LAMP.arm, LAMP.neck]) +
       poly(L, [add(LAMP.foot, [-5, 0, 0.5]), add(LAMP.foot, [5, 0, 0.5]), add(LAMP.foot, [5, 7, 0.5]), add(LAMP.foot, [-5, 7, 0.5])], true));
     els.stem.style.strokeWidth = weight(2.6, L.project(LAMP.arm).s);
-    els.shade.setAttribute('d', poly(L, [sub(LAMP.neck, mul(X1, 3)), add(LAMP.neck, mul(X1, 3)), add(LAMP.mouth, mul(X1, 8)), sub(LAMP.mouth, mul(X1, 8))], true));
+    setD(els.shade, poly(L, [sub(LAMP.neck, mul(X1, 3)), add(LAMP.neck, mul(X1, 3)), add(LAMP.mouth, mul(X1, 8)), sub(LAMP.mouth, mul(X1, 8))], true));
     els.shade.style.strokeWidth = weight(2, L.project(LAMP.neck).s);
-    if (els.glow) {
+    if (els.glow && !glowSvg.hasAttribute('hidden')) {
       const G = els.glow;
       const mouth = L.project(LAMP.mouth);
       const pool = L.project(LAMP.pool);
       const ring = Array.from({ length: 28 }, (_, i) => add(LAMP.pool, [260 * Math.cos(i * 0.2244), 115 * Math.sin(i * 0.2244), 0]));
-      G.pool.setAttribute('d', poly(L, ring, true));
+      G.pool.setAttribute('d', poly(L, ring, true)); // the lamp's light is SVG still, and shown
       G.cone.setAttribute('d', poly(L, [sub(LAMP.mouth, mul(X1, 8)), add(LAMP.mouth, mul(X1, 8)), add(LAMP.pool, [260, 0, 0]), add(LAMP.pool, [-260, 0, 0])], true));
       G.coneGrad.setAttribute('x1', mouth.x.toFixed(1));
       G.coneGrad.setAttribute('y1', mouth.y.toFixed(1));
@@ -1369,7 +1391,7 @@ const CHALKBOARD = (() => {
       size = Math.max(size, q.s);
     }
     els.dust.forEach((el, i) => {
-      el.setAttribute('d', bins[i]);
+      setD(el, bins[i]);
       el.style.strokeWidth = clamp(1.3 * size, 1, 5).toFixed(2);
     });
 
@@ -1378,19 +1400,29 @@ const CHALKBOARD = (() => {
     els.shadow.toggleAttribute('hidden', !joints);
     if (!joints) return null;
     const feet = mix3(joints.nearLeg[2], joints.farLeg[2], 0.5);
-    els.shadow.setAttribute('d', poly(L, Array.from({ length: 16 }, (_, i) => [
+    setD(els.shadow, poly(L, Array.from({ length: 16 }, (_, i) => [
       feet[0] + 24 * Math.cos(i * 0.3927), 0.3, feet[2] + 16 * Math.sin(i * 0.3927),
     ]), true));
     els.shadow.style.opacity = (0.08 * lift).toFixed(3);
 
     const part = els.part;
     const depth = {};
+    const box = els.manBox; // where he is on screen, for the canvas (paintBoard)
+    box.x0 = box.y0 = Infinity;
+    box.x1 = box.y1 = -Infinity;
+    const around = (x, y, r) => {
+      box.x0 = Math.min(box.x0, x - r);
+      box.y0 = Math.min(box.y0, y - r);
+      box.x1 = Math.max(box.x1, x + r);
+      box.y1 = Math.max(box.y1, y + r);
+    };
     const draw = (name, el, pts, extra = '') => {
       const qs = pts.map((p) => L.project(p));
-      el.setAttribute('d', `M${qs.map(at).join('L')}${extra}`);
+      setD(el, `M${qs.map(at).join('L')}${extra}`);
       const s = qs.reduce((sum, q) => sum + q.s, 0) / qs.length;
       el.style.strokeWidth = weight(4, s);
       depth[name] = qs.reduce((sum, q) => sum + q.depth, 0) / qs.length;
+      qs.forEach((q) => around(q.x, q.y, 0));
     };
     draw('far-leg', part['far-leg'], joints.farLeg);
     draw('near-leg', part['near-leg'], joints.nearLeg);
@@ -1414,6 +1446,7 @@ const CHALKBOARD = (() => {
     part.head.style.strokeWidth = weight(4, head.s);
     part.head.style.fillOpacity = ease(clamp(lift / 0.3)).toFixed(3); // solid once he is between us and the board
     depth.head = head.depth;
+    around(head.x, head.y, FIG.headR * head.s);
     const order = Object.keys(depth).sort((a, b) => depth[b] - depth[a]);
     const key = order.join();
     if (key !== els.order) {
@@ -1422,6 +1455,210 @@ const CHALKBOARD = (() => {
     }
     els.man.style.setProperty('--behind', ease(clamp(lift / 0.6)).toFixed(3));
     return { x: head.x, y: head.y, r: FIG.headR * head.s };
+  }
+
+  // --------------------------------------------------------- the canvas
+
+  // What is seen of the board is a canvas, painted from the SVG render()
+  // builds, which is never shown itself. The show's camera moves every
+  // frame, and the browser rastering that whole SVG afresh each frame held
+  // the show to 40 to 80 fps on a 144 Hz screen; the same paths painted on
+  // one canvas keep up. The SVG holds what there is to draw, in order, and
+  // its CSS and inline styles say how each thing looks; the paths themselves
+  // are in pathData (setD).
+  const paint = {
+    canvas: null, ctx: null, // the board
+    him: null, himCtx: null, // him, apart, so his paper edge goes round all of him at once
+    looks: new WeakMap(), // element -> how its CSS has it look
+    paths: new WeakMap(), // element -> { d, path }, parsed again only when it changes
+    pens: new WeakMap(), // context -> what it is set to, so settings are made only on a change
+    board: null, boardCtx: null, // the board as far as him, kept while it stays the same
+    stale: true, // it has changed (setD, and paintBoard's own checks)
+    cached: false, // board holds it as it is
+    kept: '', // the rest of what it was drawn with
+    fit: '',
+  };
+
+  // How an element looks by its CSS alone, read once, from a bare copy of it
+  // in the same place in the SVG so the same rules apply. What render() sets
+  // inline each frame (widths, opacities) is read as it is painted.
+  function lookOf(el) {
+    let look = paint.looks.get(el);
+    if (look) return look;
+    const probe = document.createElementNS(NS, el.tagName);
+    const cls = el.getAttribute('class');
+    if (cls) probe.setAttribute('class', cls);
+    el.parentNode.append(probe);
+    const cs = getComputedStyle(probe);
+    look = {
+      fill: cs.fill, stroke: cs.stroke, width: parseFloat(cs.strokeWidth) || 1,
+      opacity: parseFloat(cs.opacity), fillOpacity: parseFloat(cs.fillOpacity),
+      cap: cs.strokeLinecap, join: cs.strokeLinejoin, rule: cs.fillRule === 'evenodd' ? 'evenodd' : 'nonzero',
+      filter: cs.filter,
+      far: probe.classList.contains('is-far'), // .bench-cam .is-far goes by --behind (styles.css)
+    };
+    probe.remove();
+    paint.looks.set(el, look);
+    return look;
+  }
+  matchMedia('(prefers-contrast: more)').addEventListener?.('change', () => {
+    paint.looks = new WeakMap();
+    paint.stale = true;
+  });
+
+  function showBoard(visible) {
+    svg.toggleAttribute('hidden', !visible); // SVG elements have no .hidden
+    if (!visible) glowSvg?.toggleAttribute('hidden', true); // shown, it is up to the lamp (drawBoard)
+    if (paint.canvas && paint.canvas.hidden === visible) paint.canvas.hidden = !visible;
+  }
+
+  function paintBoard() {
+    if (!paint.canvas) {
+      paint.canvas = document.createElement('canvas');
+      paint.canvas.className = 'chalk-canvas';
+      paint.canvas.setAttribute('aria-hidden', 'true');
+      svg.after(paint.canvas); // in the SVG's place among the scene's layers
+      paint.ctx = paint.canvas.getContext('2d');
+      paint.him = document.createElement('canvas');
+      paint.himCtx = paint.him.getContext('2d');
+      paint.board = document.createElement('canvas');
+      paint.boardCtx = paint.board.getContext('2d');
+    }
+    const { canvas, ctx } = paint;
+    const dpr = window.devicePixelRatio || 1;
+    const fit = `${sceneWidth}|${sceneHeight}|${dpr}`;
+    if (fit !== paint.fit) {
+      paint.fit = fit;
+      paint.stale = true;
+      for (const c of [canvas, paint.him, paint.board]) {
+        c.width = Math.round(sceneWidth * dpr);
+        c.height = Math.round(sceneHeight * dpr);
+      }
+    }
+    // What changes the board without changing a path: the chalk's place,
+    // side on, the floor fading, and his shadow coming and going.
+    const kept = `${els.chalk.getAttribute('transform')}|${els.floor.style.opacity}|${els.shadow.hasAttribute('hidden')}`;
+    if (kept !== paint.kept) {
+      paint.kept = kept;
+      paint.stale = true;
+    }
+    // The board as far as him. While it changes (the camera moving) it is
+    // painted straight on; once it holds still (his idles at the finished
+    // board) it is painted once more, aside, and that is used until it
+    // changes again, so only he and the chalk dust are painted each frame.
+    const moving = paint.stale;
+    paint.stale = false;
+    if (moving) paint.cached = false;
+    else if (!paint.cached) {
+      paint.cached = true;
+      const b = paint.boardCtx;
+      b.setTransform(1, 0, 0, 1, 0, 0);
+      b.clearRect(0, 0, paint.board.width, paint.board.height);
+      b.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paint.pens.set(b, {});
+      for (const el of svg.children) {
+        if (el === els.man) break;
+        paintEl(b, el, 1, dpr);
+      }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!moving) {
+      ctx.globalAlpha = 1; // whatever the last frame ended on
+      ctx.drawImage(paint.board, 0, 0);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paint.pens.set(ctx, {});
+    let him = false;
+    for (const el of svg.children) {
+      him ||= el === els.man;
+      if (him || moving) paintEl(ctx, el, 1, dpr);
+    }
+  }
+
+  function paintEl(ctx, el, alpha, dpr) {
+    if (el.hasAttribute('hidden')) return;
+    const look = lookOf(el);
+    const own = el.style.opacity !== '' ? parseFloat(el.style.opacity)
+      : look.far ? 0.38 + 0.62 * (parseFloat(els.man.style.getPropertyValue('--behind')) || 0)
+      : look.opacity;
+    const a = alpha * own;
+    if (!(a > 0)) return;
+    if (el === els.man) {
+      paintHim(ctx, el, a, look, dpr);
+      return;
+    }
+    if (el.tagName === 'g') {
+      const m = el.getAttribute('transform')?.match(/matrix\(([^)]*)\)/);
+      const outer = m && ctx.getTransform(); // not save(): that would undo the pen too
+      if (m) ctx.transform(...m[1].trim().split(/[\s,]+/).map(Number));
+      for (const child of el.children) paintEl(ctx, child, a, dpr);
+      if (m) ctx.setTransform(outer);
+      return;
+    }
+    let path;
+    if (el.tagName === 'circle') {
+      const r = Number(el.getAttribute('r'));
+      if (!(r > 0)) return;
+      path = new Path2D();
+      path.arc(Number(el.getAttribute('cx')), Number(el.getAttribute('cy')), r, 0, 2 * Math.PI);
+    } else {
+      const d = pathData.get(el) ?? el.getAttribute('d');
+      if (!d) return;
+      let parsed = paint.paths.get(el);
+      if (!parsed || parsed.d !== d) {
+        parsed = { d, path: new Path2D(d) };
+        paint.paths.set(el, parsed);
+      }
+      path = parsed.path;
+    }
+    const pen = paint.pens.get(ctx);
+    if (look.fill !== 'none') {
+      const fillAlpha = a * (el.style.fillOpacity !== '' ? parseFloat(el.style.fillOpacity) : look.fillOpacity);
+      if (pen.alpha !== fillAlpha) ctx.globalAlpha = pen.alpha = fillAlpha;
+      if (pen.fill !== look.fill) ctx.fillStyle = pen.fill = look.fill;
+      ctx.fill(path, look.rule);
+    }
+    if (look.stroke !== 'none') {
+      const width = el.style.strokeWidth !== '' ? parseFloat(el.style.strokeWidth) : look.width;
+      if (pen.alpha !== a) ctx.globalAlpha = pen.alpha = a;
+      if (pen.stroke !== look.stroke) ctx.strokeStyle = pen.stroke = look.stroke;
+      if (pen.width !== width) ctx.lineWidth = pen.width = width;
+      if (pen.cap !== look.cap) ctx.lineCap = pen.cap = look.cap;
+      if (pen.join !== look.join) ctx.lineJoin = pen.join = look.join;
+      ctx.stroke(path);
+    }
+  }
+
+  // Him, on a canvas of his own and then onto the board's through his CSS
+  // filter (a paper edge), so it goes round the whole of him rather than
+  // each line. Only the box he is in (render keeps it) is worked on.
+  function paintHim(ctx, el, alpha, look, dpr) {
+    const { him, himCtx } = paint;
+    const b = els.manBox;
+    const pad = 16; // his line widths and the edge's blur
+    const x0 = Math.max(0, Math.floor((b.x0 - pad) * dpr));
+    const y0 = Math.max(0, Math.floor((b.y0 - pad) * dpr));
+    const x1 = Math.min(him.width, Math.ceil((b.x1 + pad) * dpr));
+    const y1 = Math.min(him.height, Math.ceil((b.y1 + pad) * dpr));
+    if (x1 <= x0 || y1 <= y0) return;
+    himCtx.setTransform(1, 0, 0, 1, 0, 0);
+    himCtx.clearRect(x0, y0, x1 - x0, y1 - y0);
+    himCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paint.pens.set(himCtx, {});
+    for (const child of el.children) paintEl(himCtx, child, 1, dpr);
+    // The canvas filter works in its own pixels, the CSS one in CSS px.
+    if (look.canvasFilterDpr !== dpr) {
+      look.canvasFilterDpr = dpr;
+      look.canvasFilter = look.filter === 'none' ? 'none' : look.filter.replace(/(-?[\d.]+)px/g, (_, n) => `${Number(n) * dpr}px`);
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.filter = look.canvasFilter;
+    ctx.drawImage(him, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+    ctx.restore();
+    paint.pens.set(ctx, {}); // restore() put its settings back
   }
 
   // ----------------------------------------------------------- the show
@@ -1511,10 +1748,10 @@ const CHALKBOARD = (() => {
     show.said = null;
   }
   function placeBubble(head) {
-    const half = introSpeech.offsetWidth / 2;
+    const half = speechWidth / 2; // script.js keeps its size: reading it here would force a layout
     const tail = 0.17 * half; // as frame() places it: the tail a little right of the middle
     introSpeech.style.left = `${clamp(head.x - tail, half + 8, sceneWidth - half - 8).toFixed(1)}px`;
-    const top = clamp(head.y - head.r - 12, navHeight + introSpeech.offsetHeight + 8, sceneHeight - 8);
+    const top = clamp(head.y - head.r - 12, navHeight + speechHeight + 8, sceneHeight - 8);
     introSpeech.style.bottom = `${(sceneHeight - top).toFixed(1)}px`;
   }
 
@@ -1588,8 +1825,7 @@ const CHALKBOARD = (() => {
     const right = markX + (LADDER.home + 40 - P.mark) * S;
     const onScreen = right > -60 && left < sceneWidth + 60;
     if (!show.mode && !here && !onScreen) {
-      if (!svg.hasAttribute('hidden')) svg.setAttribute('hidden', '');
-      if (glowSvg && !glowSvg.hasAttribute('hidden')) glowSvg.setAttribute('hidden', '');
+      showBoard(false);
       if (skipButton && !skipButton.hidden) skipButton.hidden = true; // only on a change: body:has() rules watch it
       scene.classList.remove('is-by-board');
       return 0;
@@ -1721,8 +1957,7 @@ const CHALKBOARD = (() => {
     }
 
     const visible = Boolean(show.mode) || onScreen;
-    svg.toggleAttribute('hidden', !visible); // SVG elements have no .hidden
-    glowSvg?.toggleAttribute('hidden', !visible);
+    showBoard(visible);
     const hideSkip = !(show.mode === 'show' && !show.skip && !show.leave && show.t > 1.5 && show.t < P.done - 1);
     if (skipButton && skipButton.hidden !== hideSkip) skipButton.hidden = hideSkip;
     // Walking past the slate, he gets a paper edge so he reads against it.
@@ -1738,6 +1973,10 @@ const CHALKBOARD = (() => {
     if (glowSvg && glowSvg.style.opacity !== lights) glowSvg.style.opacity = lights;
     const hour = typeof skyClock === 'undefined' ? 12 : skyClock.hour;
     const lit = hour >= LAMP_ON || hour < LAMP_OFF;
+    // Its light is only there while it can be seen. Off, or by day, it was
+    // still rastered afresh every frame of the show, blurs and all, which
+    // now and then held a frame up for a third of a second.
+    glowSvg?.toggleAttribute('hidden', !(lit && parseFloat(lights) > 0));
     if (lit !== show.lamp && els?.glow) {
       els.glow.g.classList.toggle('is-dark', !lit);
       if (lit && show.lamp !== null && !reducedMotion.matches) {
@@ -1777,6 +2016,11 @@ const CHALKBOARD = (() => {
       idle(name) { if (show.mode === 'show' && show.t > getPlan().duration) startIdle(getPlan(), name); },
       get plan() { return getPlan(); },
       seek(t) { show.t = t; },
+      // The path an element of the board is drawn with this frame ('' if none).
+      pathOf: (el) => pathData.get(el) || '',
+      // Writes the paths into the (hidden) SVG as well, so a test can show it
+      // in place of the canvas and compare the two.
+      mirror(on) { mirrorSvg = on; },
       camera: (t) => (show.track ? trackAt(show.track, t) : null),
       rebuild() { show.key = ''; },
       // How far his writing hand is from the chalk at time t, while it is down.

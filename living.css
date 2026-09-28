@@ -351,8 +351,9 @@
   rotate: var(--wheel, 0deg);
 }
 
-/* By day the layer is transparent, so the twinkling stops (living.js sets
-   is-out): each running animation costs a restyle every frame. */
+/* By day, and while the camera is round on a close up, the layer is
+   transparent, so the twinkling stops (living.js, starsOut): each running
+   animation costs a restyle every frame. */
 .sky-stars.is-out i {
   animation: none;
 }
@@ -416,6 +417,11 @@
      living.js counters that drift so the SVG edge never enters the viewport. */
   translate: var(--wheel-shift, 0px) 0;
   rotate: var(--wheel, 0deg);
+}
+
+/* Out of sight (living.js, starsOut), it isn't drawn at all. */
+.sky-galaxy.is-out {
+  display: none;
 }
 
 .sky-galaxy svg {
@@ -818,6 +824,12 @@ html[data-sky="dark"] .poi-nav::before {
 
 .prop-mug__steam path:nth-child(2) { animation-delay: -0.5s; }
 .prop-mug__steam path:nth-child(3) { animation-delay: -1s; }
+
+/* Put away (living.js, showProp), the steam rests: it would otherwise be
+   restyled and repainted every frame, unseen. */
+.prop-mug:is([opacity="0"], [opacity="0.00"]) .prop-mug__steam path {
+  animation-play-state: paused;
+}
 
 /* Rising, and drifting back behind him (the figure is mirrored to face
    left, so back is always -x). */
