@@ -309,7 +309,7 @@ function poiArtifactStation() {
   const def = poiArtifactDefinitions[id];
   if (!def || !state.announced || openPanelId || intro.active || intro.release ||
       state.speed !== 0 || state.hop || state.jump || state.turning > 0 ||
-      inputKeys.left || inputKeys.right || inputKeys.sprint || pointerPlay.reaction) return null;
+      inputKeys.left || inputKeys.right || inputKeys.sprint) return null;
 
   if (id === experienceScene) {
     return !state.experienceActive && handcar.stage === 'done' ? id : null;

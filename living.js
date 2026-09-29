@@ -169,14 +169,14 @@ let livingInputAt = 0;
 });
 
 // Whether he is his own man: nobody steering him, not at a stop's scene,
-// not in the opening, not on the line, not being poked.
+// not in the opening, not on the line.
 function isFree() {
   return !intro.active && !intro.release && !openPanelId &&
     !state.wantSeat && !state.wantBench && !state.wantForge && !state.experienceActive &&
     state.speed === 0 && !state.hop && !state.jump &&
     state.seat === 0 && state.inspect === 0 && state.typeIn === 0 &&
     state.projectView === 0 && state.termView === 0 && state.compose === 0 &&
-    handcar.stage === 'off' && state.courseTime === 0 && !chalkBusy() && !pointerPlay.reaction &&
+    handcar.stage === 'off' && state.courseTime === 0 && !chalkBusy() &&
     !inputKeys.left && !inputKeys.right && !inputKeys.sprint && !teleport.phase &&
     (state.destinationId === null || state.announced);
 }
@@ -449,7 +449,7 @@ function livingFrameStart() {
 }
 
 // His pose for this frame with what he is up to laid over it (script.js,
-// frame, just before the cursor's poke).
+// frame).
 function livingPose(base, dt, now, unit) {
   // A load average of sorts: frames' length against a 60 fps one, averaged
   // over about 1, 5 and 15 seconds.
@@ -1128,7 +1128,7 @@ function runningFree(unit) {
   const walkPx = (GAITS.walk.travel / WALK_CYCLE) * unit;
   return state.moving && state.speed > walkPx * 1.05 && !intro.active && !intro.release && !openPanelId
     && state.courseTime === 0 && handcar.stage === 'off' && !state.jump && state.seat === 0 && state.inspect === 0
-    && state.typeIn === 0 && state.turning === 0 && !pointerPlay.reaction;
+    && state.typeIn === 0 && state.turning === 0;
 }
 
 // How far ahead of him world px `x` is, in units, the way he faces.

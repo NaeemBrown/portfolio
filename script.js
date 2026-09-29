@@ -808,27 +808,6 @@ class SoundEngine {
     }
   }
 
-  swat() {
-    if (!this.enabled || !this.ctx) return;
-    if (this.sample('cloth', { vol: 0.18, rate: 1.35, vary: 0.05 })) return;
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(220, now);
-    osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
-
-    gain.gain.setValueAtTime(0.22, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
-    osc.connect(gain);
-    gain.connect(this.synthGain);
-
-    osc.start(now);
-    osc.stop(now + 0.08);
-  }
-
   /* The rest are built from two parts: a tone, one oscillator gliding from
      one pitch to another, and hiss, noise through a filter. Each takes an
      `at`, seconds from now, so a sound can be several of them in a row. */
@@ -1099,47 +1078,15 @@ const state = {
   courseRise: 0,
 };
 
-/* ------------------------------------------------------ cursor interaction
-   With a mouse or trackpad he can be poked: entering his silhouette is a
-   poke; pressing on him is a push. The reaction is layered over the pose
-   produced by the main gait solver, so navigation and the rest of the
-   character animation keep their own state. */
+/* ---------------------------------------------------------------- cursor
+   With a mouse or trackpad, where the cursor is: he looks at it, and the
+   birds keep clear of it (living.js). */
 
 const finePointer = window.matchMedia('(pointer: fine)');
 const pointerPlay = {
   x: -100,
   y: -100,
-  lastX: -100,
-  lastY: -100,
-  lastMove: 0,
-  speed: 0,
   visible: false,
-  insideFigure: false,
-  reaction: null,
-  cooldownUntil: 0,
-};
-// The main frame already knows exactly where the figure is drawn. Keep that
-// geometry here instead of asking the browser for a fresh layout rectangle on
-// every pointer event (and again every frame).
-let pointerFigureBox = null;
-
-const pointerPostures = {
-  swat: [
-    { at: 0, lean: 0 },
-    { at: 0.13, lean: -13, bob: 2, near: { shoulder: 44, elbow: -72 } },
-    { at: 0.3, lean: -9, near: { shoulder: 62, elbow: -105 }, far: { shoulder: 18 } },
-    { at: 0.48, lean: 11, spin: 2, near: { shoulder: -96, elbow: 24 }, far: { shoulder: -28 } },
-    { at: 0.65, lean: 7, near: { shoulder: -76, elbow: 12 } },
-    { at: 1, lean: 0 },
-  ],
-  shove: [
-    { at: 0, lean: 0 },
-    { at: 0.14, lean: -16, bob: 3, near: { shoulder: 36, elbow: -66 }, far: { shoulder: 34, elbow: -58 } },
-    { at: 0.34, lean: -10, near: { shoulder: 52, elbow: -92 }, far: { shoulder: 48, elbow: -86 } },
-    { at: 0.53, lean: 15, spin: 1.5, near: { shoulder: -84, elbow: 4 }, far: { shoulder: -62, elbow: -4 } },
-    { at: 0.72, lean: 10, near: { shoulder: -72, elbow: 8 }, far: { shoulder: -56, elbow: 3 } },
-    { at: 1, lean: 0 },
-  ],
 };
 
 function copyPose(source) {
@@ -1198,91 +1145,12 @@ function postured(base, posture) {
   return out;
 }
 
-function figurePointerHit(x, y) {
-  if (!finePointer.matches || !pointerFigureBox || figure.style.visibility === 'hidden') return false;
-  const dx = (x - pointerFigureBox.centreX) / pointerFigureBox.radiusX;
-  const dy = (y - pointerFigureBox.centreY) / pointerFigureBox.radiusY;
-  return dx * dx + dy * dy <= 1;
-}
-
-function updateFigurePointerBox(shift, verticalShift, flip, unit) {
-  const width = 140 * unit * Math.abs(flip); // the figure SVG viewBox is 140 × 242
-  const height = UNITS_TALL * unit;
-  pointerFigureBox = {
-    centreX: sceneWidth / 2 + shift,
-    centreY: floorY + 1 + verticalShift - height * 0.46,
-    radiusX: width * 0.36 + 9,
-    radiusY: height * 0.5,
-  };
-}
-
-function startPointerReaction(kind, now = performance.now()) {
-  if (now < pointerPlay.cooldownUntil || !figurePointerHit(pointerPlay.x, pointerPlay.y)) return;
-  cancelAmbient(); // living: a poke stops whatever he was doing by himself
-  const side = pointerPlay.x >= pointerFigureBox.centreX ? 1 : -1;
-  pointerPlay.reaction = {
-    kind,
-    side,
-    startedAt: now,
-    duration: kind === 'shove' ? 1120 : 920,
-    impactAt: kind === 'shove' ? 0.5 : 0.44,
-    impacted: false,
-  };
-  pointerPlay.cooldownUntil = now + (kind === 'shove' ? 1280 : 1050);
-  scene.dataset.cursorReaction = kind;
-}
-
-function pointerReactionPose(base, now) {
-  const reaction = pointerPlay.reaction;
-  if (!reaction) return { pose: base, flip: state.flip };
-
-  const progress = clamp((now - reaction.startedAt) / reaction.duration, 0, 1);
-  if (!reaction.impacted && progress >= reaction.impactAt) {
-    reaction.impacted = true;
-    scene.dataset.cursorReaction = `${reaction.kind}-impact`;
-  }
-
-  const reacted = postureAt(pointerPostures[reaction.kind], progress, base);
-
-  const faceIn = clamp(progress / 0.14, 0, 1);
-  const faceOut = 1 - clamp((progress - 0.82) / 0.18, 0, 1);
-  const faceAmount = Math.min(faceIn, faceOut);
-  const reactionFlip = mix(state.flip, reaction.side, faceAmount);
-
-  if (progress >= 1) {
-    pointerPlay.reaction = null;
-    delete scene.dataset.cursorReaction;
-    return { pose: base, flip: state.flip };
-  }
-  return { pose: reacted, flip: reactionFlip };
-}
-
 if (finePointer.matches) {
   window.addEventListener('pointermove', (event) => {
     if (event.pointerType === 'touch') return;
-    const now = performance.now();
-    const elapsed = Math.max(8, now - pointerPlay.lastMove);
-    const distance = Math.hypot(event.clientX - pointerPlay.lastX, event.clientY - pointerPlay.lastY);
-    pointerPlay.speed = (distance / elapsed) * 1000;
-    pointerPlay.lastMove = now;
     pointerPlay.visible = true;
-    pointerPlay.lastX = pointerPlay.x = event.clientX;
-    pointerPlay.lastY = pointerPlay.y = event.clientY;
-
-    const hitsFigure = figurePointerHit(event.clientX, event.clientY);
-    if (hitsFigure && !pointerPlay.insideFigure) {
-      startPointerReaction(pointerPlay.speed > 720 ? 'shove' : 'swat', now);
-    }
-    pointerPlay.insideFigure = hitsFigure;
-  }, { passive: true });
-
-  window.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'touch') return;
-    if (figurePointerHit(event.clientX, event.clientY)) {
-      pointerPlay.cooldownUntil = Math.min(pointerPlay.cooldownUntil, performance.now());
-      startPointerReaction('shove');
-      sfx.swat();
-    }
+    pointerPlay.x = event.clientX;
+    pointerPlay.y = event.clientY;
   }, { passive: true });
 
   document.documentElement.addEventListener('mouseenter', () => {
@@ -1291,7 +1159,6 @@ if (finePointer.matches) {
 
   document.documentElement.addEventListener('mouseleave', () => {
     pointerPlay.visible = false;
-    pointerPlay.insideFigure = false;
   });
 }
 
@@ -7061,8 +6928,6 @@ function frame(now) {
   if (state.typeIn > 0) typePose(final, state.typeIn, now);
   updateTerminal(dt);
   final = livingPose(final, dt, now, unit); // living: what he gets up to by himself (living.js)
-  const pointerResponse = state.typeIn > 0 ? { pose: final, flip: state.flip } : pointerReactionPose(final, now);
-  final = pointerResponse.pose;
   // Site-native entrance previews use this same rig and frame loop. The
   // optional hook supplies only a pose and screen offset; the real world,
   // camera, navbar, figure, and responsive measurements remain untouched.
@@ -7079,8 +6944,7 @@ function frame(now) {
     state.inspect === 0 &&
     state.typeIn === 0 &&
     !state.hop &&
-    state.turning === 0 &&
-    !pointerPlay.reaction;
+    state.turning === 0;
 
   const speedFade = clamp((state.speed - walkPx * 0.4) / (walkPx * 0.4), 0, 1);
   updateRunFlares(dt, final, isRunningGait, speedFade);
@@ -7123,7 +6987,7 @@ function frame(now) {
   const dropping = opening ? opening.lift * unit : 0;
   const entranceShift = entrancePreview?.shift || 0;
   const entranceLift = entrancePreview?.lift || 0;
-  const displayFlip = entrancePreview?.flip || pointerResponse.flip;
+  const displayFlip = entrancePreview?.flip || state.flip;
   const sceneRise = state.courseRise - handcar.lift; // the line lifts the scene over a narrow screen's timetable
   applyPose(final, displayFlip, frameShift + hipShift + walkingOn + entranceShift,
     sceneRise - liftPx - dropping - hopPx - entranceLift);
@@ -7145,12 +7009,6 @@ function frame(now) {
   drawLapCam(lapU, unit, sceneWidth / 2 + frameShift + hipShift + walkingOn + entranceShift,
     sceneRise - liftPx - dropping - hopPx - entranceLift, final);
   placeLapSpeech(unit);
-  updateFigurePointerBox(
-    frameShift + hipShift + walkingOn + entranceShift,
-    sceneRise - liftPx - dropping - hopPx - entranceLift,
-    displayFlip,
-    unit,
-  );
   const worldFade = 1 - ease(clamp(Math.max(state.projectView, state.termView, boardView, lapU) / 0.45, 0, 1));
   scene.style.setProperty('--project-world-opacity', worldFade.toFixed(4));
   scene.style.setProperty('--project-ground-opacity', (0.22 * worldFade).toFixed(4));
@@ -7392,9 +7250,7 @@ function useStop(id = nearStop) {
 stopAreas.forEach((area) => {
   area.marker.querySelector('.poi__label').addEventListener('click', () => useStop(area.id));
   area.hits.forEach((hit) => {
-    hit.addEventListener('click', (event) => {
-      if (!figurePointerHit(event.clientX, event.clientY)) useStop(area.id); // a click on him is a shove
-    });
+    hit.addEventListener('click', () => useStop(area.id));
     // Over the scenery, its prompt lights up as if pointed at.
     hit.addEventListener('pointerenter', () => area.marker.classList.add('is-hot'));
     hit.addEventListener('pointerleave', () => area.marker.classList.remove('is-hot'));

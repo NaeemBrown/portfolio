@@ -205,8 +205,6 @@
     ambient.last = null;
     ambient.pinned = 0;
     ambient.face = 0;
-    pointerPlay.reaction = null;
-    delete scene.dataset.cursorReaction;
     closePanel(false);
     hushSpeech();
     hideCampfireProps();
