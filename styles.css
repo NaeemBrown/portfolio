@@ -186,6 +186,7 @@ button {
   width: 7px;
   height: 7px;
   margin-left: -3.5px;
+  box-sizing: border-box; /* the border inside the 7px, as the runner's size, so it sits dead on it */
   border: 1.5px solid currentColor;
   border-radius: 50%;
   background: var(--paper);
