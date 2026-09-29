@@ -181,12 +181,12 @@ button {
 
 .poi-nav button::after {
   position: absolute;
-  bottom: -11px;
+  bottom: -12px;
   left: 50%;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
-  box-sizing: border-box; /* the border inside the 7px, as the runner's size, so it sits dead on it */
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  box-sizing: border-box; /* the border inside the 9px, as the runner's size, so it sits dead on it */
   border: 1.5px solid currentColor;
   border-radius: 50%;
   background: var(--paper);
@@ -212,11 +212,11 @@ button {
 /* Where he is right now, placed along the route by script.js. */
 .poi-nav__runner {
   position: absolute;
-  bottom: 3px;
+  bottom: 2px;
   left: 0;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
   border-radius: 999px;
   background: var(--ink);
   pointer-events: none;
