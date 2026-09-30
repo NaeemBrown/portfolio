@@ -6,10 +6,12 @@
     <title>Naeem Brown · CV</title>
     <meta
       name="description"
-      content="CV of Naeem Brown, UX designer and web developer in Cape Town, South Africa."
+      content="CV of Naeem Brown, full-stack developer in Cape Town, South Africa."
     />
-    <!-- The printable CV. cv/build-pdf.cjs prints this page to
-         cv/Naeem-Brown-CV.pdf; change the words here, then run it again.
+    <!-- The printable CV. Headless Chrome prints this page to
+         cv/Naeem-Brown-CV.pdf; change the words here, then print it again:
+         chrome --headless --no-pdf-header-footer --virtual-time-budget=5000
+           --print-to-pdf=cv/Naeem-Brown-CV.pdf cv/index.html
          One column of real text, standard headings and no tables, so
          applicant tracking systems read it in order; the look (the name on
          its plinth, the timetable rail, the Role/Tools labels) is the site's. -->
@@ -119,7 +121,7 @@
 
       .masthead__role {
         font: 700 7.4pt/1.2 var(--font-label);
-        letter-spacing: 0.34em;
+        letter-spacing: 0.16em;
         text-transform: uppercase;
         color: #4c4a45;
       }
@@ -304,10 +306,11 @@
     <header class="masthead">
       <h1>Naeem Brown</h1>
       <div class="masthead__plinth">
-        <p class="masthead__role">UX Designer &amp; Web Developer</p>
+        <p class="masthead__role">Full-Stack Developer</p>
       </div>
       <p class="masthead__contact">
         <span>Cape Town, South Africa</span>
+        <span><a href="tel:+27713451241">+27 71 345 1241</a></span>
         <span
           ><a href="mailto:naeembrown544@gmail.com"
             >naeembrown544@gmail.com</a
@@ -328,71 +331,77 @@
     </header>
 
     <section>
-      <h2>Summary</h2>
+      <h2>Professional Summary</h2>
       <p class="summary">
-        UX designer and web developer building since 2020. I design and build
-        clean, customizable interfaces that are easy to use and take the user’s
-        preferences into account, making the experience smoother for the user
-        and developers.
+        Full-stack developer with six years of experience building responsive web
+        applications, internal tools and systems integrations. Delivered more than
+        $5,000 in software cost savings and reduced Largest Contentful Paint from
+        40 seconds to approximately one second using TypeScript, modern JavaScript
+        frameworks, cloud platforms and user-centred design.
       </p>
     </section>
 
     <section>
-      <h2>Experience</h2>
+      <h2>Professional Experience</h2>
       <ol class="timetable">
         <li class="is-current">
           <div class="entry-head">
             <h3>Systems Engineer</h3>
-            <span class="sep">·</span><span class="where">Pet Plus</span>
-            <span class="dates">2025 to Present</span>
+            <span class="sep">|</span><span class="where">Pet Plus</span>
+            <span class="dates">2025 – Present</span>
           </div>
           <ul class="points">
             <li>
-              Built custom internal software that saved the company $5,000+
-              (R82,200).
+              Developed custom internal software that reduced company costs by
+              more than $5,000 (R82,200).
             </li>
             <li>
-              Rebuilt the company’s web storefront on Cloudflare DNS, cutting
-              Largest Contentful Paint from 40 s to about 1 s.
+              Rebuilt the company’s web storefront and configured Cloudflare,
+              reducing Largest Contentful Paint from 40 seconds to approximately
+              one second (97.5%).
             </li>
             <li>
-              Created Lightspeed POS and Shopify financial dashboards, and tools
-              that inject custom apps into Lightspeed.
+              Built financial dashboards for Lightspeed POS and Shopify, plus
+              internal tooling that embeds custom applications in Lightspeed.
             </li>
           </ul>
         </li>
         <li>
           <div class="entry-head">
             <h3>Infrastructure Engineer</h3>
-            <span class="sep">·</span><span class="where">Pet Plus</span>
-            <span class="dates">2022 to 2025</span>
+            <span class="sep">|</span><span class="where">Pet Plus</span>
+            <span class="dates">2022 – 2025</span>
           </div>
           <ul class="points">
             <li>
-              Set up core IT infrastructure from scratch: internal systems, code
-              repositories and Google Workspace.
+              Established the company’s core IT infrastructure, including internal
+              systems, code repositories and Google Workspace administration.
             </li>
             <li>
-              Led the first automated synchronization between Lightspeed POS and
-              Shopify, so inventory and sales stayed in step.
+              Designed and implemented the company’s first automated synchronization
+              between Lightspeed POS and Shopify, keeping inventory and sales data
+              aligned.
             </li>
-            <li>Negotiated partner API integrations.</li>
+            <li>
+              Negotiated partner API access and integrations connecting third-party
+              business systems.
+            </li>
           </ul>
         </li>
         <li class="is-current">
           <div class="entry-head">
             <h3>Web &amp; UI/UX Developer</h3>
-            <span class="sep">·</span><span class="where">Freelance</span>
-            <span class="dates">2020 to Present</span>
+            <span class="sep">|</span><span class="where">Freelance</span>
+            <span class="dates">2020 – Present</span>
           </div>
           <ul class="points">
             <li>
-              Building websites and web apps since 2020, with a focus on
-              polished UI/UX design since 2022.
+              Designed and developed responsive websites and web applications using
+              Vue, Nuxt, React, TypeScript and Tailwind CSS.
             </li>
             <li>
-              Designing clean, custom interfaces that look great for users and
-              are easy for other developers to work with.
+              Translated UX requirements into reusable, developer-friendly interfaces
+              with responsive layouts and full keyboard navigation.
             </li>
           </ul>
         </li>
@@ -405,17 +414,16 @@
         <li>
           <div class="entry-head">
             <h3>CaseMap Next Gen</h3>
-            <span class="sep">·</span
-            ><span class="where">Design for Lexis</span>
+            <span class="sep">|</span
+            ><span class="where">Design for LexisNexis</span>
             <a class="url" href="https://casemap-next-gen.vercel.app"
               >casemap-next-gen.vercel.app</a
             >
           </div>
           <p>
-            The next generation of CaseMap, the legal case analysis tool: a
-            dashboard people arrange themselves, with panels to drag and resize,
-            switchable charts, docking navigation, saved layouts and full
-            keyboard control.
+            Designed and prototyped a configurable legal case-analysis dashboard
+            with drag-and-resize panels, switchable charts, docked navigation,
+            saved layouts and full keyboard control.
           </p>
           <p class="tools">
             <span class="label">Tools</span>Angular, TypeScript, Vercel
@@ -424,17 +432,17 @@
         <li>
           <div class="entry-head">
             <h3>PetPlus Workforce</h3>
-            <span class="sep">·</span><span class="where">for Pet Plus</span>
+            <span class="sep">|</span><span class="where">for Pet Plus</span>
             <a class="url" href="https://petplus-workforce-pwa.vercel.app"
               >petplus-workforce-pwa.vercel.app</a
             >
           </div>
           <p>
-            The staff app for the Pet Plus vet shops: shift rosters, clocking in
-            and daily store routines, installable on a phone.
+            Built an installable staff PWA for shift rosters, clock-ins and daily
+            store routines, with Google OAuth 2.0 authentication and Supabase.
           </p>
           <p class="tools">
-            <span class="label">Tools</span>React, Supabase, Google sign in
+            <span class="label">Tools</span>React, Supabase, Google Sign-In
             (OAuth 2.0), PWA, Vercel
           </p>
         </li>
@@ -444,8 +452,8 @@
             <a class="url" href="https://sin-esports.com">sin-esports.com</a>
           </div>
           <p>
-            Site for a South African esports organisation: divisions, limited
-            clothing drops and a live Twitch creator wall, in WebGL.
+            Developed a WebGL site for a South African esports organisation,
+            featuring team divisions, limited clothing drops and live Twitch embeds.
           </p>
           <p class="tools">
             <span class="label">Tools</span>Nuxt, Vue, Three.js (WebGL), GSAP,
@@ -460,44 +468,12 @@
             >
           </div>
           <p>
-            Six live multiplayer party games that run in the browser with no
-            download, including chess in the fog of war.
+            Built six live multiplayer browser games using Colyseus and WebSockets,
+            including a real-time fog-of-war chess variant.
           </p>
           <p class="tools">
             <span class="label">Tools</span>Nuxt, Vue, Colyseus (WebSockets),
             Cloudflare
-          </p>
-        </li>
-        <li>
-          <div class="entry-head">
-            <h3>TheWebsiteForge</h3>
-            <a class="url" href="https://websiteforge.pixelatedindustries.com"
-              >websiteforge.pixelatedindustries.com</a
-            >
-          </div>
-          <p>
-            A web studio that designs, builds and hosts sites under one roof,
-            with finished builds to buy off the shelf.
-          </p>
-          <p class="tools">
-            <span class="label">Tools</span>Nuxt, Vue, Tailwind CSS, Firebase,
-            Cloudflare
-          </p>
-        </li>
-        <li>
-          <div class="entry-head">
-            <h3>Steady</h3>
-            <a class="url" href="https://steady-calendar.vercel.app"
-              >steady-calendar.vercel.app</a
-            >
-          </div>
-          <p>
-            A calendar app that brings every calendar into one view, flags the
-            clashes and shows where the hours go.
-          </p>
-          <p class="tools">
-            <span class="label">Tools</span>React, Firebase (Auth, Firestore),
-            Vercel
           </p>
         </li>
       </ul>
@@ -506,27 +482,27 @@
     <section class="skills">
       <h2>Skills</h2>
       <p>
-        <span class="label">Design</span>UI/UX design, customizable interfaces
-        built around the user, responsive layouts, full keyboard control
+        <span class="label">Design</span>UI/UX design, user-centred design,
+        responsive web design, interaction design, keyboard accessibility
       </p>
       <p>
-        <span class="label">Front end</span>HTML, CSS, JavaScript, TypeScript,
+        <span class="label">Frontend</span>HTML, CSS, JavaScript, TypeScript,
         Vue, Nuxt, React, Angular, Tailwind CSS
       </p>
       <p>
-        <span class="label">Back end</span>Supabase, Firebase, Colyseus
-        (WebSockets), REST API integrations (Lightspeed POS, Shopify), SQL
+        <span class="label">Backend &amp; Data</span>Supabase, Firebase, SQL,
+        REST APIs, OAuth 2.0, Colyseus, WebSockets, Lightspeed POS, Shopify
       </p>
       <p>
         <span class="label">Languages</span>Python, C#, Java, PowerShell, Bash
       </p>
       <p>
         <span class="label">Cloud &amp; DevOps</span>Cloudflare, Vercel,
-        Netlify, Azure, Docker, Git and GitHub
+        Netlify, Microsoft Azure, Docker, Git, GitHub
       </p>
       <p>
-        <span class="label">Systems</span>Windows Server, Microsoft 365 and
-        Google Workspace admin, SSO (SAML, OAuth, LDAP)
+        <span class="label">Systems</span>Windows Server, Microsoft 365,
+        Google Workspace administration, SSO, SAML, OAuth, LDAP
       </p>
     </section>
   </body>
